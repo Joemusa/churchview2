@@ -26,8 +26,7 @@ creds = Credentials.from_service_account_info(
 client = gspread.authorize(creds)
 
 # 👉 YOUR SHEET NAME
-sheet = client.open("Churchview").sheet1
-
+sheet = client.open("Churchview").worksheet("Members")
 # Load data
 data = sheet.get_all_records()
 df = pd.DataFrame(data)
