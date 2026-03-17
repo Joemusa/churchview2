@@ -1,68 +1,91 @@
 import streamlit as st
 import pandas as pd
 import gspread
-from oauth2client.service_account import ServiceAccountCredentials
+from google.oauth2.service_account import Credentials
 
 # ----------------------------
 # PAGE CONFIG
 # ----------------------------
-st.set_page_config(page_title="Church Analytics", layout="wide")
+st.set_page_config(page_title="Church Intelligence System", layout="wide")
+
+st.title("⛪ Church Member Dashboard")
 
 # ----------------------------
-# CUSTOM STYLE (Power BI Look)
-# ----------------------------
-st.markdown("""
-    <style>
-    .metric-card {
-        background-color: #1f2937;
-        padding: 20px;
-        border-radius: 12px;
-        color: white;
-        text-align: center;
-    }
-    </style>
-""", unsafe_allow_html=True)
-
-st.title("⛪ Church Member Analytics Dashboard")
-
-# ----------------------------
-# GOOGLE SHEETS CONNECTION
+# GOOGLE SHEETS CONNECTION (SECRETS)
 # ----------------------------
 scope = [
-    "https://spreadsheets.google.com/feeds",
+    "https://www.googleapis.com/auth/spreadsheets",
     "https://www.googleapis.com/auth/drive"
 ]
 
-creds = ServiceAccountCredentials.from_json_keyfile_name(
-    "credentials.json", scope
+creds = Credentials.from_service_account_info(
+    st.secrets["gcp_service_account"],
+    scopes=scope
 )
 
 client = gspread.authorize(creds)
-sheet = client.open("1l0wrjMGHNcipYqeLkwY15fKPuM7bpwKMvICUuGhNcOs").Members
-data = sheet.get_all_records()
 
+# 👉 YOUR SHEET NAME
+sheet = client.open("Churchview").Members
+
+# Load data
+data = sheet.get_all_records()
 df = pd.DataFrame(data)
+
+# ----------------------------
+# CLEAN DATA
+# ----------------------------
 df.columns = df.columns.str.strip()
 
-# CLEAN DATA
+# Rename columns (IMPORTANT if your sheet still has ?)
+df = df.rename(columns={
+    "First Name?": "First Name",
+    "Surname?": "Surname",
+    "Cellphone?": "Cellphone",
+    "Gender?": "Gender",
+    "Age?": "Age",
+    "Employment Status?": "Employment Status",
+    "Province?": "Province",
+    "Region?": "Region",
+    "Branch?": "Branch"
+})
+
+# Convert data types
 df["Age"] = pd.to_numeric(df["Age"], errors="coerce")
-df["Timestamp"] = pd.to_datetime(df["Timestamp"])
+df["Timestamp"] = pd.to_datetime(df["Timestamp"], errors="coerce")
 
 # ----------------------------
 # SIDEBAR FILTERS
 # ----------------------------
 st.sidebar.header("🔍 Filters")
 
-province = st.sidebar.multiselect("Province", df["Province"].unique(), df["Province"].unique())
-branch = st.sidebar.multiselect("Branch", df["Branch"].unique(), df["Branch"].unique())
+province = st.sidebar.multiselect(
+    "Province",
+    options=df["Province"].dropna().unique(),
+    default=df["Province"].dropna().unique()
+)
 
+branch = st.sidebar.multiselect(
+    "Branch",
+    options=df["Branch"].dropna().unique(),
+    default=df["Branch"].dropna().unique()
+)
+
+gender = st.sidebar.multiselect(
+    "Gender",
+    options=df["Gender"].dropna().unique(),
+    default=df["Gender"].dropna().unique()
+)
+
+# Apply filters
 filtered_df = df[
     (df["Province"].isin(province)) &
-    (df["Branch"].isin(branch))
+    (df["Branch"].isin(branch)) &
+    (df["Gender"].isin(gender))
 ]
 
 # ----------------------------
-# KPI SECTION (CARDS)
+# KPI SECTION
 # ----------------------------
 col1, col2, col3, col4 = st.columns(4)
 
@@ -72,18 +95,23 @@ avg_age = filtered_df["Age"].mean()
 male = len(filtered_df[filtered_df["Gender"] == "Male"])
 female = len(filtered_df[filtered_df["Gender"] == "Female"])
 
+employment_rate = (
+    len(filtered_df[filtered_df["Employment Status"] == "Employed"])
+    / total_members * 100 if total_members > 0 else 0
+)
+
 col1.metric("👥 Total Members", total_members)
-col2.metric("📊 Avg Age", round(avg_age, 1))
+col2.metric("📊 Avg Age", round(avg_age, 1) if pd.notnull(avg_age) else 0)
 col3.metric("👨 Male", male)
-col4.metric("👩 Female", female)
+col4.metric("💼 Employed %", f"{round(employment_rate,1)}%")
 
 # ----------------------------
-# TABS (Power BI Style)
+# TABS
 # ----------------------------
 tab1, tab2, tab3 = st.tabs(["📊 Overview", "📈 Growth", "📋 Members"])
 
 # ----------------------------
-# TAB 1: OVERVIEW
+# OVERVIEW
 # ----------------------------
 with tab1:
     col1, col2 = st.columns(2)
@@ -94,6 +122,9 @@ with tab1:
     col2.subheader("Members by Branch")
     col2.bar_chart(filtered_df["Branch"].value_counts())
 
+    st.subheader("Gender Distribution")
+    st.bar_chart(filtered_df["Gender"].value_counts())
+
     st.subheader("Employment Status")
     st.bar_chart(filtered_df["Employment Status"].value_counts())
 
@@ -101,7 +132,7 @@ with tab1:
     st.bar_chart(filtered_df["Age"].value_counts().sort_index())
 
 # ----------------------------
-# TAB 2: GROWTH TRACKING
+# GROWTH TRACKING
 # ----------------------------
 with tab2:
     st.subheader("📈 Church Growth Over Time")
@@ -109,22 +140,26 @@ with tab2:
     growth = filtered_df.copy()
     growth["Date"] = growth["Timestamp"].dt.date
 
-    growth_chart = growth.groupby("Date").size()
+    daily_growth = growth.groupby("Date").size()
+    st.line_chart(daily_growth)
 
-    st.line_chart(growth_chart)
+    # Monthly Growth
+    growth["Month"] = growth["Timestamp"].dt.to_period("M")
+    monthly_growth = growth.groupby("Month").size()
 
-    st.markdown("### 🔥 Insight")
-    st.write("Track how your church is growing daily. Identify spikes after events or campaigns.")
+    st.subheader("Monthly Growth")
+    st.bar_chart(monthly_growth)
 
 # ----------------------------
-# TAB 3: MEMBER LIST
+# MEMBER TABLE
 # ----------------------------
 with tab3:
-    st.subheader("📋 Member Database")
+    st.subheader("📋 Member List")
+
     st.dataframe(filtered_df)
 
     st.download_button(
         "⬇ Download Data",
         filtered_df.to_csv(index=False),
-        "members.csv"
+        "church_members.csv"
     )
