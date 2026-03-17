@@ -8,8 +8,6 @@ from google.oauth2.service_account import Credentials
 # ----------------------------
 st.set_page_config(page_title="Church Intelligence System", layout="wide")
 
-st.title("⛪ Church Member Dashboard")
-
 # ----------------------------
 # GOOGLE SHEETS CONNECTION (SECRETS)
 # ----------------------------
@@ -25,9 +23,53 @@ creds = Credentials.from_service_account_info(
 
 client = gspread.authorize(creds)
 
-# 👉 YOUR SHEET NAME
+# ----------------------------
+# LOGIN SYSTEM
+# ----------------------------
+def load_users():
+    users_sheet = client.open("ChurchApp").worksheet("Users")
+    users_data = users_sheet.get_all_records()
+    return pd.DataFrame(users_data)
+
+def login():
+    st.sidebar.title("🔐 Login")
+
+    email = st.sidebar.text_input("Email")
+    password = st.sidebar.text_input("Password", type="password")
+
+    if st.sidebar.button("Login"):
+        users_df = load_users()
+
+        user = users_df[
+            (users_df["email"] == email) &
+            (users_df["password"] == password)
+        ]
+
+        if not user.empty:
+            st.session_state["logged_in"] = True
+            st.session_state["church"] = user.iloc[0]["church"]
+            st.success("Login successful")
+        else:
+            st.error("Invalid credentials")
+
+# Initialize session
+if "logged_in" not in st.session_state:
+    st.session_state["logged_in"] = False
+
+# Run login
+if not st.session_state["logged_in"]:
+    login()
+    st.stop()
+
+# ----------------------------
+# MAIN DASHBOARD
+# ----------------------------
+st.title("⛪ Church Member Dashboard")
+
+# ----------------------------
+# LOAD MEMBER DATA
+# ----------------------------
 sheet = client.open("ChurchApp").worksheet("Members")
-# Load data
 data = sheet.get_all_records()
 df = pd.DataFrame(data)
 
@@ -36,7 +78,6 @@ df = pd.DataFrame(data)
 # ----------------------------
 df.columns = df.columns.str.strip()
 
-# Rename columns (IMPORTANT if your sheet still has ?)
 df = df.rename(columns={
     "First Name?": "First Name",
     "Surname?": "Surname",
@@ -49,9 +90,14 @@ df = df.rename(columns={
     "Branch?": "Branch"
 })
 
-# Convert data types
 df["Age"] = pd.to_numeric(df["Age"], errors="coerce")
 df["Timestamp"] = pd.to_datetime(df["Timestamp"], errors="coerce")
+
+# ----------------------------
+# FILTER BY LOGGED-IN CHURCH
+# ----------------------------
+user_church = st.session_state["church"]
+df = df[df["Branch"] == user_church]
 
 # ----------------------------
 # SIDEBAR FILTERS
@@ -64,12 +110,6 @@ province = st.sidebar.multiselect(
     default=df["Province"].dropna().unique()
 )
 
-branch = st.sidebar.multiselect(
-    "Branch",
-    options=df["Branch"].dropna().unique(),
-    default=df["Branch"].dropna().unique()
-)
-
 gender = st.sidebar.multiselect(
     "Gender",
     options=df["Gender"].dropna().unique(),
@@ -79,7 +119,6 @@ gender = st.sidebar.multiselect(
 # Apply filters
 filtered_df = df[
     (df["Province"].isin(province)) &
-    (df["Branch"].isin(branch)) &
     (df["Gender"].isin(gender))
 ]
 
@@ -142,7 +181,6 @@ with tab2:
     daily_growth = growth.groupby("Date").size()
     st.line_chart(daily_growth)
 
-    # Monthly Growth
     growth["Month"] = growth["Timestamp"].dt.to_period("M")
     monthly_growth = growth.groupby("Month").size()
 
@@ -162,3 +200,10 @@ with tab3:
         filtered_df.to_csv(index=False),
         "church_members.csv"
     )
+
+# ----------------------------
+# LOGOUT BUTTON
+# ----------------------------
+if st.sidebar.button("Logout"):
+    st.session_state["logged_in"] = False
+    st.experimental_rerun()
