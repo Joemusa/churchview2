@@ -102,7 +102,8 @@ df["Timestamp"] = pd.to_datetime(df["Timestamp"], errors="coerce")
 # ----------------------------
 # FILTER BY LOGGED-IN CHURCH
 # ----------------------------
-user_church = st.session_state["church"]
+user_church = st.session_state.get("church")
+#user_church = st.session_state["church"]
 df = df[df["Branch"] == user_church]
 
 # ----------------------------
