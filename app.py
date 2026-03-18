@@ -34,8 +34,11 @@ def load_users():
 def login():
     st.sidebar.title("🔐 Login")
 
-    email = st.sidebar.text_input("Email")
-    password = st.sidebar.text_input("Password", type="password")
+    email = input_email.strip()
+    password = input_password.strip()
+
+    df['email'] = df['email'].str.strip()
+    df['password'] = df['password'].astype(str).str.strip()
 
     if st.sidebar.button("Login"):
         users_df = load_users()
