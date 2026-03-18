@@ -33,11 +33,19 @@ def load_users():
 
 def login():
 
+    # Load users (THIS WAS MISSING)
+    df = load_users()
+
     # Get user input
     input_email = st.text_input("Email")
     input_password = st.text_input("Password", type="password")
 
     if st.button("Login"):
+
+        # Prevent empty inputs
+        if not input_email or not input_password:
+            st.warning("Please enter email and password")
+            return
 
         # Clean inputs
         email = input_email.strip().lower()
@@ -45,7 +53,7 @@ def login():
 
         # Clean dataframe
         df.columns = [str(col).strip().lower() for col in df.columns]
-        #df.columns = df.columns.str.strip().str.lower()
+
         df['email'] = df['email'].astype(str).str.strip().str.lower()
         df['password'] = df['password'].astype(str).str.strip()
 
@@ -53,19 +61,12 @@ def login():
         user = df[(df['email'] == email) & (df['password'] == password)]
 
         if not user.empty:
+            st.session_state["logged_in"] = True
+            st.session_state["church"] = user.iloc[0]["church"]  # ✅ IMPORTANT
             st.success("Login successful")
+            st.rerun()
         else:
             st.error("Invalid credentials")
-
-# Initialize session
-if "logged_in" not in st.session_state:
-    st.session_state["logged_in"] = False
-
-# Run login
-if not st.session_state["logged_in"]:
-    login()
-    st.stop()
-
 # ----------------------------
 # MAIN DASHBOARD
 # ----------------------------
