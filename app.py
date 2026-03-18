@@ -44,7 +44,8 @@ def login():
         password = input_password.strip()
 
         # Clean dataframe
-        df.columns = df.columns.str.strip().str.lower()
+        df.columns = [str(col).strip().lower() for col in df.columns]
+        #df.columns = df.columns.str.strip().str.lower()
         df['email'] = df['email'].astype(str).str.strip().str.lower()
         df['password'] = df['password'].astype(str).str.strip()
 
