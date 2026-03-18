@@ -32,25 +32,26 @@ def load_users():
     return pd.DataFrame(users_data)
 
 def login():
-    st.sidebar.title("🔐 Login")
 
-    email = input_email.strip()
-    password = input_password.strip()
+    # Get user input
+    input_email = st.text_input("Email")
+    input_password = st.text_input("Password", type="password")
 
-    df['email'] = df['email'].str.strip()
-    df['password'] = df['password'].astype(str).str.strip()
+    if st.button("Login"):
 
-    if st.sidebar.button("Login"):
-        users_df = load_users()
+        # Clean inputs
+        email = input_email.strip().lower()
+        password = input_password.strip()
 
-        user = users_df[
-            (users_df["email"] == email) &
-            (users_df["password"] == password)
-        ]
+        # Clean dataframe
+        df.columns = df.columns.str.strip().str.lower()
+        df['email'] = df['email'].astype(str).str.strip().str.lower()
+        df['password'] = df['password'].astype(str).str.strip()
+
+        # Check user
+        user = df[(df['email'] == email) & (df['password'] == password)]
 
         if not user.empty:
-            st.session_state["logged_in"] = True
-            st.session_state["church"] = user.iloc[0]["church"]
             st.success("Login successful")
         else:
             st.error("Invalid credentials")
