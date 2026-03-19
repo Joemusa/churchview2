@@ -70,7 +70,7 @@ attendance = pd.DataFrame(client.open("ChurchApp").worksheet("Attendance").get_a
 members.columns = members.columns.str.strip()
 attendance.columns = attendance.columns.str.strip()
 
-# Rename columns
+# Rename
 members = members.rename(columns={
     "First Name?": "First Name",
     "Surname?": "Surname",
@@ -78,7 +78,7 @@ members = members.rename(columns={
     "Employment Status?": "Employment Status"
 })
 
-# Convert types
+# Convert dates
 members["Timestamp"] = pd.to_datetime(members["Timestamp"], errors="coerce")
 attendance["Date"] = pd.to_datetime(attendance["Date"], errors="coerce")
 
@@ -89,30 +89,30 @@ st.sidebar.header("🔍 Filters")
 
 gender = st.sidebar.multiselect(
     "Gender",
-    options=members["Gender"].dropna().unique(),
+    members["Gender"].dropna().unique(),
     default=members["Gender"].dropna().unique()
 )
 
 province = st.sidebar.multiselect(
     "Province",
-    options=members["Province"].dropna().unique(),
+    members["Province"].dropna().unique(),
     default=members["Province"].dropna().unique()
 )
 
 region = st.sidebar.multiselect(
     "Region",
-    options=members["Region"].dropna().unique(),
+    members["Region"].dropna().unique(),
     default=members["Region"].dropna().unique()
 )
 
 employment = st.sidebar.multiselect(
     "Employment Status",
-    options=members["Employment Status"].dropna().unique(),
+    members["Employment Status"].dropna().unique(),
     default=members["Employment Status"].dropna().unique()
 )
 
 # ----------------------------
-# FILTERED DATA
+# FILTER DATA
 # ----------------------------
 members_f = members[
     (members["Gender"].isin(gender)) &
@@ -141,17 +141,14 @@ if "Employment Status" in attendance.columns:
 st.title("⛪ Church Analytics Dashboard")
 
 # ----------------------------
-# KPI SECTION (FILTERED)
+# KPI (ONE ROW - FILTERED)
 # ----------------------------
-k1, k2, k3, k4 = st.columns(4)
+k1, k2, k3, k4, k5, k6 = st.columns(6)
 
 k1.metric("👥 Members", members_f["MemberID"].nunique())
 k2.metric("👨 Male", len(members_f[members_f["Gender"] == "Male"]))
 k3.metric("👩 Female", len(members_f[members_f["Gender"] == "Female"]))
 k4.metric("📍 Provinces", members_f["Province"].nunique())
-
-k5, k6 = st.columns(2)
-
 k5.metric("📊 Attendance", len(attendance_f))
 k6.metric("⛪ Services", attendance_f["Service"].nunique() if "Service" in attendance_f.columns else 0)
 
@@ -170,29 +167,63 @@ tab1, tab2, tab3, tab4 = st.tabs([
 # ============================
 with tab1:
 
+    # Top row
     c1, c2 = st.columns(2)
 
     with c1:
-        if not members_f.empty:
-            st.plotly_chart(px.pie(members_f, names="Gender", title="Gender Distribution"), use_container_width=True)
+        st.plotly_chart(
+            px.pie(members_f, names="Gender", title="Gender Distribution"),
+            use_container_width=True
+        )
 
     with c2:
         emp = members_f["Employment Status"].value_counts().reset_index()
         emp.columns = ["Employment Status", "Count"]
-        st.plotly_chart(px.bar(emp, x="Employment Status", y="Count", title="Employment"), use_container_width=True)
 
-    c3, c4 = st.columns(2)
+        st.plotly_chart(
+            px.bar(emp, x="Employment Status", y="Count", title="Employment"),
+            use_container_width=True
+        )
+
+    # Second row (4 charts aligned)
+    c3, c4, c5, c6 = st.columns(4)
 
     with c3:
         prov = members_f["Province"].value_counts().reset_index()
         prov.columns = ["Province", "Count"]
-        st.plotly_chart(px.bar(prov, x="Province", y="Count", title="Province"), use_container_width=True)
+
+        st.plotly_chart(
+            px.bar(prov, x="Province", y="Count", title="Province"),
+            use_container_width=True
+        )
 
     with c4:
-        if not attendance_f.empty and "Service" in attendance_f.columns:
+        if "Service" in attendance_f.columns:
             serv = attendance_f["Service"].value_counts().reset_index()
             serv.columns = ["Service", "Count"]
-            st.plotly_chart(px.bar(serv, x="Service", y="Count", title="Service Attendance"), use_container_width=True)
+
+            st.plotly_chart(
+                px.bar(serv, x="Service", y="Count", title="Service Attendance"),
+                use_container_width=True
+            )
+
+    with c5:
+        reg = members_f["Region"].value_counts().reset_index()
+        reg.columns = ["Region", "Count"]
+
+        st.plotly_chart(
+            px.bar(reg, x="Region", y="Count", title="Region"),
+            use_container_width=True
+        )
+
+    with c6:
+        br = members_f["Branch"].value_counts().reset_index()
+        br.columns = ["Branch", "Count"]
+
+        st.plotly_chart(
+            px.bar(br, x="Branch", y="Count", title="Branch"),
+            use_container_width=True
+        )
 
 # ============================
 # GROWTH
@@ -207,7 +238,10 @@ with tab2:
 
     growth = pd.merge(mem_growth, att_growth, on="Date", how="outer").fillna(0)
 
-    st.plotly_chart(px.line(growth, x="Date", y=["Members", "Attendance"], title="Growth Over Time"), use_container_width=True)
+    st.plotly_chart(
+        px.line(growth, x="Date", y=["Members", "Attendance"], title="Growth Over Time"),
+        use_container_width=True
+    )
 
 # ============================
 # MEMBERS TABLE
@@ -219,15 +253,15 @@ with tab3:
     show_filtered = st.checkbox("Show filtered data only")
 
     if show_filtered:
-        st.dataframe(members_f, use_container_width=True)
-        export_df = members_f
+        table = members_f
     else:
-        st.dataframe(members, use_container_width=True)
-        export_df = members
+        table = members
+
+    st.dataframe(table, use_container_width=True)
 
     st.download_button(
         "⬇ Export Members",
-        export_df.to_csv(index=False),
+        table.to_csv(index=False),
         "members.csv"
     )
 
