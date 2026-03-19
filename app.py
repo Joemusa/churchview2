@@ -29,8 +29,8 @@ client = gspread.authorize(creds)
 # LOGIN SYSTEM
 # ----------------------------
 def load_users():
-    users_sheet = client.open("ChurchApp").worksheet("Users")
-    return pd.DataFrame(users_sheet.get_all_records())
+    sheet = client.open("ChurchApp").worksheet("Users")
+    return pd.DataFrame(sheet.get_all_records())
 
 def login():
     df_users = load_users()
@@ -118,16 +118,49 @@ church = st.session_state.get("church")
 df = df[df["Branch"] == church]
 
 # ----------------------------
-# TITLE
+# SIDEBAR FILTERS
 # ----------------------------
-st.title("⛪ Church Intelligence Dashboard")
+st.sidebar.header("🔍 Filters")
+
+gender_filter = st.sidebar.multiselect(
+    "Gender",
+    sorted(df["Gender"].dropna().unique()),
+    default=sorted(df["Gender"].dropna().unique())
+)
+
+province_filter = st.sidebar.multiselect(
+    "Province",
+    sorted(df["Province"].dropna().unique()),
+    default=sorted(df["Province"].dropna().unique())
+)
+
+branch_filter = st.sidebar.multiselect(
+    "Branch",
+    sorted(df["Branch"].dropna().unique()),
+    default=sorted(df["Branch"].dropna().unique())
+)
+
+region_filter = st.sidebar.multiselect(
+    "Region",
+    sorted(df["Region"].dropna().unique()),
+    default=sorted(df["Region"].dropna().unique())
+)
+
+filtered_df = df[
+    (df["Gender"].isin(gender_filter)) &
+    (df["Province"].isin(province_filter)) &
+    (df["Branch"].isin(branch_filter)) &
+    (df["Region"].isin(region_filter))
+]
 
 # ----------------------------
 # KPIs
 # ----------------------------
+st.title("⛪ Church Intelligence Dashboard")
+
 col1, col2, col3 = st.columns(3)
 
-col1.metric("👥 Total Members", len(df))
+col1.metric("👥 Total Members", len(filtered_df))
 col2.metric("📊 Total Attendance", len(attendance_df))
 col3.metric("🆕 First Visits", len(attendance_df[attendance_df["Status"] == "First Visit"]))
 
@@ -139,11 +172,14 @@ st.header("👥 Members Analysis")
 col1, col2 = st.columns(2)
 
 with col1:
-    fig = px.pie(df, names="Gender", title="Members by Gender")
+    fig = px.pie(filtered_df, names="Gender", title="Members by Gender")
     st.plotly_chart(fig, use_container_width=True)
 
 with col2:
-    fig = px.bar(df["Province"].value_counts(), title="Members by Province")
+    fig = px.bar(
+        filtered_df["Province"].value_counts(),
+        title="Members by Province"
+    )
     st.plotly_chart(fig, use_container_width=True)
 
 # ----------------------------
@@ -154,11 +190,18 @@ st.header("📊 Attendance Analysis")
 col1, col2 = st.columns(2)
 
 with col1:
-    fig = px.bar(attendance_df["Service"].value_counts(), title="Attendance by Service")
+    fig = px.bar(
+        attendance_df["Service"].value_counts(),
+        title="Attendance by Service"
+    )
     st.plotly_chart(fig, use_container_width=True)
 
 with col2:
-    fig = px.pie(attendance_df, names="Status", title="Attendance Status")
+    fig = px.pie(
+        attendance_df,
+        names="Status",
+        title="Attendance Status"
+    )
     st.plotly_chart(fig, use_container_width=True)
 
 # ----------------------------
@@ -166,7 +209,7 @@ with col2:
 # ----------------------------
 st.header("📈 Growth: Members vs Attendance")
 
-members_growth = df.groupby(df["Timestamp"].dt.date).size()
+members_growth = filtered_df.groupby(filtered_df["Timestamp"].dt.date).size()
 attendance_growth = attendance_df.groupby(attendance_df["Date"].dt.date).size()
 
 growth_df = pd.DataFrame({
@@ -174,7 +217,7 @@ growth_df = pd.DataFrame({
     "Attendance": attendance_growth
 }).fillna(0)
 
-fig = px.line(growth_df, title="Growth Over Time")
+fig = px.line(growth_df, title="Growth Over Time", markers=True)
 st.plotly_chart(fig, use_container_width=True)
 
 # ----------------------------
