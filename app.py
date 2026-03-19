@@ -5,12 +5,12 @@ import plotly.express as px
 from google.oauth2.service_account import Credentials
 
 # ----------------------------
-# CONFIG
+# PAGE CONFIG
 # ----------------------------
 st.set_page_config(page_title="Church Dashboard", layout="wide")
 
 # ----------------------------
-# CONNECT
+# GOOGLE CONNECTION
 # ----------------------------
 scope = [
     "https://www.googleapis.com/auth/spreadsheets",
@@ -25,13 +25,14 @@ creds = Credentials.from_service_account_info(
 client = gspread.authorize(creds)
 
 # ----------------------------
-# LOGIN
+# LOGIN SYSTEM
 # ----------------------------
 def load_users():
     return pd.DataFrame(client.open("ChurchApp").worksheet("Users").get_all_records())
 
 def login():
     users = load_users()
+    users.columns = users.columns.str.strip().str.lower()
 
     st.title("🔐 Login")
 
@@ -39,10 +40,9 @@ def login():
     password = st.text_input("Password", type="password")
 
     if st.button("Login"):
-        users.columns = users.columns.str.strip().str.lower()
 
         user = users[
-            (users["email"].str.lower().str.strip() == email.lower().strip()) &
+            (users["email"].str.strip().str.lower() == email.strip().lower()) &
             (users["password"].astype(str).str.strip() == password.strip())
         ]
 
@@ -61,20 +61,24 @@ if not st.session_state["logged_in"]:
     st.stop()
 
 # ----------------------------
-# LOAD DATA (FULL DATASET)
+# LOAD DATA
 # ----------------------------
 members = pd.DataFrame(client.open("ChurchApp").worksheet("Members").get_all_records())
 attendance = pd.DataFrame(client.open("ChurchApp").worksheet("Attendance").get_all_records())
 
+# Clean columns
 members.columns = members.columns.str.strip()
 attendance.columns = attendance.columns.str.strip()
 
+# Rename columns
 members = members.rename(columns={
     "First Name?": "First Name",
     "Surname?": "Surname",
+    "Cellphone?": "Cellphone",
     "Employment Status?": "Employment Status"
 })
 
+# Convert types
 members["Timestamp"] = pd.to_datetime(members["Timestamp"], errors="coerce")
 attendance["Date"] = pd.to_datetime(attendance["Date"], errors="coerce")
 
@@ -83,13 +87,32 @@ attendance["Date"] = pd.to_datetime(attendance["Date"], errors="coerce")
 # ----------------------------
 st.sidebar.header("🔍 Filters")
 
-gender = st.sidebar.multiselect("Gender", members["Gender"].dropna().unique(), default=members["Gender"].dropna().unique())
-province = st.sidebar.multiselect("Province", members["Province"].dropna().unique(), default=members["Province"].dropna().unique())
-region = st.sidebar.multiselect("Region", members["Region"].dropna().unique(), default=members["Region"].dropna().unique())
-employment = st.sidebar.multiselect("Employment", members["Employment Status"].dropna().unique(), default=members["Employment Status"].dropna().unique())
+gender = st.sidebar.multiselect(
+    "Gender",
+    options=members["Gender"].dropna().unique(),
+    default=members["Gender"].dropna().unique()
+)
+
+province = st.sidebar.multiselect(
+    "Province",
+    options=members["Province"].dropna().unique(),
+    default=members["Province"].dropna().unique()
+)
+
+region = st.sidebar.multiselect(
+    "Region",
+    options=members["Region"].dropna().unique(),
+    default=members["Region"].dropna().unique()
+)
+
+employment = st.sidebar.multiselect(
+    "Employment Status",
+    options=members["Employment Status"].dropna().unique(),
+    default=members["Employment Status"].dropna().unique()
+)
 
 # ----------------------------
-# FILTERED DATA (ONLY FOR CHARTS)
+# FILTERED DATA
 # ----------------------------
 members_f = members[
     (members["Gender"].isin(gender)) &
@@ -100,20 +123,37 @@ members_f = members[
 
 attendance_f = attendance.copy()
 
+if "Province" in attendance.columns:
+    attendance_f = attendance_f[attendance_f["Province"].isin(province)]
+
+if "Gender" in attendance.columns:
+    attendance_f = attendance_f[attendance_f["Gender"].isin(gender)]
+
+if "Region" in attendance.columns:
+    attendance_f = attendance_f[attendance_f["Region"].isin(region)]
+
+if "Employment Status" in attendance.columns:
+    attendance_f = attendance_f[attendance_f["Employment Status"].isin(employment)]
+
 # ----------------------------
 # TITLE
 # ----------------------------
-st.title("⛪ Church Dashboard")
+st.title("⛪ Church Analytics Dashboard")
 
 # ----------------------------
-# KPI (USE FULL DATA)
+# KPI SECTION (FILTERED)
 # ----------------------------
 k1, k2, k3, k4 = st.columns(4)
 
-k1.metric("Total Members", members["MemberID"].nunique())  # ✅ FIXED
-k2.metric("Filtered Members", len(members_f))
-k3.metric("Attendance", len(attendance_f))
-k4.metric("Branches", members["Branch"].nunique())
+k1.metric("👥 Members", members_f["MemberID"].nunique())
+k2.metric("👨 Male", len(members_f[members_f["Gender"] == "Male"]))
+k3.metric("👩 Female", len(members_f[members_f["Gender"] == "Female"]))
+k4.metric("📍 Provinces", members_f["Province"].nunique())
+
+k5, k6 = st.columns(2)
+
+k5.metric("📊 Attendance", len(attendance_f))
+k6.metric("⛪ Services", attendance_f["Service"].nunique() if "Service" in attendance_f.columns else 0)
 
 # ----------------------------
 # TABS
@@ -126,32 +166,33 @@ tab1, tab2, tab3, tab4 = st.tabs([
 ])
 
 # ============================
-# DASHBOARD (USES FILTERED DATA)
+# DASHBOARD
 # ============================
 with tab1:
 
     c1, c2 = st.columns(2)
 
     with c1:
-        st.plotly_chart(px.pie(members_f, names="Gender", title="Gender"), use_container_width=True)
+        if not members_f.empty:
+            st.plotly_chart(px.pie(members_f, names="Gender", title="Gender Distribution"), use_container_width=True)
 
     with c2:
         emp = members_f["Employment Status"].value_counts().reset_index()
         emp.columns = ["Employment Status", "Count"]
-        st.plotly_chart(px.bar(emp, x="Employment Status", y="Count"), use_container_width=True)
+        st.plotly_chart(px.bar(emp, x="Employment Status", y="Count", title="Employment"), use_container_width=True)
 
     c3, c4 = st.columns(2)
 
     with c3:
         prov = members_f["Province"].value_counts().reset_index()
         prov.columns = ["Province", "Count"]
-        st.plotly_chart(px.bar(prov, x="Province", y="Count"), use_container_width=True)
+        st.plotly_chart(px.bar(prov, x="Province", y="Count", title="Province"), use_container_width=True)
 
     with c4:
-        if "Service" in attendance_f.columns:
+        if not attendance_f.empty and "Service" in attendance_f.columns:
             serv = attendance_f["Service"].value_counts().reset_index()
             serv.columns = ["Service", "Count"]
-            st.plotly_chart(px.bar(serv, x="Service", y="Count"), use_container_width=True)
+            st.plotly_chart(px.bar(serv, x="Service", y="Count", title="Service Attendance"), use_container_width=True)
 
 # ============================
 # GROWTH
@@ -166,20 +207,44 @@ with tab2:
 
     growth = pd.merge(mem_growth, att_growth, on="Date", how="outer").fillna(0)
 
-    st.plotly_chart(px.line(growth, x="Date", y=["Members", "Attendance"]), use_container_width=True)
+    st.plotly_chart(px.line(growth, x="Date", y=["Members", "Attendance"], title="Growth Over Time"), use_container_width=True)
 
 # ============================
-# MEMBERS TABLE (FULL DATA)
+# MEMBERS TABLE
 # ============================
 with tab3:
-    st.subheader("All Members (Google Sheet)")
-    st.dataframe(members, use_container_width=True)  # ✅ FIXED
+
+    st.subheader("Members Table")
+
+    show_filtered = st.checkbox("Show filtered data only")
+
+    if show_filtered:
+        st.dataframe(members_f, use_container_width=True)
+        export_df = members_f
+    else:
+        st.dataframe(members, use_container_width=True)
+        export_df = members
+
+    st.download_button(
+        "⬇ Export Members",
+        export_df.to_csv(index=False),
+        "members.csv"
+    )
 
 # ============================
 # ATTENDANCE TABLE
 # ============================
 with tab4:
-    st.dataframe(attendance, use_container_width=True)
+
+    st.subheader("Attendance Table")
+
+    st.dataframe(attendance_f, use_container_width=True)
+
+    st.download_button(
+        "⬇ Export Attendance",
+        attendance_f.to_csv(index=False),
+        "attendance.csv"
+    )
 
 # ----------------------------
 # LOGOUT
