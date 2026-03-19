@@ -7,25 +7,7 @@ from google.oauth2.service_account import Credentials
 # ----------------------------
 # CONFIG
 # ----------------------------
-st.set_page_config(
-    page_title="Church Dashboard",
-    layout="wide"
-)
-
-# ----------------------------
-# RESPONSIVE DETECTION
-# ----------------------------
-screen_width = st.sidebar.slider("Screen Width (simulate)", 300, 1600, 1200)
-
-def get_columns():
-    if screen_width < 600:
-        return 1   # mobile
-    elif screen_width < 1000:
-        return 2   # tablet
-    else:
-        return 2   # desktop (we keep 2 for clean look)
-
-cols = get_columns()
+st.set_page_config(page_title="Church Dashboard", layout="wide")
 
 # ----------------------------
 # CONNECT
@@ -97,16 +79,13 @@ members["Timestamp"] = pd.to_datetime(members["Timestamp"], errors="coerce")
 attendance["Date"] = pd.to_datetime(attendance["Date"], errors="coerce")
 
 # ----------------------------
-# FILTER BY CHURCH
+# FILTER
 # ----------------------------
 church = st.session_state.get("church")
 members = members[members["Branch"] == church]
 attendance = attendance[attendance["Branch"] == church]
 
-# ----------------------------
-# SIDEBAR FILTERS
-# ----------------------------
-st.sidebar.header("🔍 Filters")
+st.sidebar.header("Filters")
 
 gender = st.sidebar.multiselect("Gender", members["Gender"].unique(), default=members["Gender"].unique())
 province = st.sidebar.multiselect("Province", members["Province"].unique(), default=members["Province"].unique())
@@ -133,21 +112,13 @@ attendance_f = attendance[
 st.title("⛪ Church Dashboard")
 
 # ----------------------------
-# KPI (Responsive)
+# KPI
 # ----------------------------
-kpis = [
-    ("Members", len(members_f)),
-    ("Attendance", len(attendance_f)),
-    ("First Visits", len(attendance_f[attendance_f["Status"] == "First Visit"])),
-    ("Branches", members_f["Branch"].nunique())
-]
-
-for i in range(0, len(kpis), cols):
-    row = st.columns(cols)
-    for j in range(cols):
-        if i + j < len(kpis):
-            label, value = kpis[i + j]
-            row[j].metric(label, value)
+k1, k2, k3, k4 = st.columns(4)
+k1.metric("Members", len(members_f))
+k2.metric("Attendance", len(attendance_f))
+k3.metric("First Visits", len(attendance_f[attendance_f["Status"] == "First Visit"]))
+k4.metric("Branches", members_f["Branch"].nunique())
 
 # ----------------------------
 # TABS
@@ -164,21 +135,27 @@ tab1, tab2, tab3, tab4 = st.tabs([
 # ============================
 with tab1:
 
-    charts = [
-        px.pie(members_f, names="Gender", title="Gender"),
-        px.bar(members_f["Employment Status"].value_counts().reset_index(),
-               x="index", y="Employment Status", title="Employment"),
-        px.bar(members_f["Province"].value_counts().reset_index(),
-               x="index", y="Province", title="Province"),
-        px.bar(attendance_f["Service"].value_counts().reset_index(),
-               x="index", y="Service", title="Service")
-    ]
+    c1, c2 = st.columns(2)
 
-    for i in range(0, len(charts), cols):
-        row = st.columns(cols)
-        for j in range(cols):
-            if i + j < len(charts):
-                row[j].plotly_chart(charts[i + j], use_container_width=True)
+    with c1:
+        st.plotly_chart(px.pie(members_f, names="Gender", title="Gender"), use_container_width=True)
+
+    with c2:
+        emp = members_f["Employment Status"].value_counts().reset_index()
+        emp.columns = ["Employment Status", "Count"]
+        st.plotly_chart(px.bar(emp, x="Employment Status", y="Count", title="Employment"), use_container_width=True)
+
+    c3, c4 = st.columns(2)
+
+    with c3:
+        prov = members_f["Province"].value_counts().reset_index()
+        prov.columns = ["Province", "Count"]
+        st.plotly_chart(px.bar(prov, x="Province", y="Count", title="Province"), use_container_width=True)
+
+    with c4:
+        serv = attendance_f["Service"].value_counts().reset_index()
+        serv.columns = ["Service", "Count"]
+        st.plotly_chart(px.bar(serv, x="Service", y="Count", title="Service"), use_container_width=True)
 
 # ============================
 # GROWTH
