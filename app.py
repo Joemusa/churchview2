@@ -103,7 +103,7 @@ attendance_f = attendance[
     (attendance["Gender"].isin(gender)) &
     (attendance["Province"].isin(province)) &
     (attendance["Region"].isin(region)) &
-    (attendance["Employment Status"].isin(employment) &
+    (attendance["Employment Status"].isin(employment)) &
     (attendance["Service"].isin(service))
 ]
 
