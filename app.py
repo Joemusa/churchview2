@@ -29,23 +29,22 @@ client = gspread.authorize(creds)
 # LOGIN SYSTEM
 # ----------------------------
 def load_users():
-    sheet = client.open("ChurchApp").worksheet("Users")
-    return pd.DataFrame(sheet.get_all_records())
+    return pd.DataFrame(client.open("ChurchApp").worksheet("Users").get_all_records())
 
 def login():
-    df_users = load_users()
+    users = load_users()
 
     email = st.text_input("Email")
     password = st.text_input("Password", type="password")
 
     if st.button("Login"):
-        df_users.columns = [str(col).strip().lower() for col in df_users.columns]
-        df_users["email"] = df_users["email"].astype(str).str.strip().str.lower()
-        df_users["password"] = df_users["password"].astype(str).str.strip()
+        users.columns = users.columns.str.strip().str.lower()
+        users["email"] = users["email"].str.strip().str.lower()
+        users["password"] = users["password"].astype(str).str.strip()
 
-        user = df_users[
-            (df_users["email"] == email.strip().lower()) &
-            (df_users["password"] == password.strip())
+        user = users[
+            (users["email"] == email.strip().lower()) &
+            (users["password"] == password.strip())
         ]
 
         if not user.empty:
@@ -68,209 +67,136 @@ if not st.session_state["logged_in"]:
 # ----------------------------
 # LOAD DATA
 # ----------------------------
-members_sheet = client.open("ChurchApp").worksheet("Members")
-attendance_sheet = client.open("ChurchApp").worksheet("Attendance")
+members = pd.DataFrame(client.open("ChurchApp").worksheet("Members").get_all_records())
+attendance = pd.DataFrame(client.open("ChurchApp").worksheet("Attendance").get_all_records())
 
-df = pd.DataFrame(members_sheet.get_all_records())
-attendance_df = pd.DataFrame(attendance_sheet.get_all_records())
+members.columns = members.columns.str.strip()
+attendance.columns = attendance.columns.str.strip()
 
-# ----------------------------
-# CLEAN DATA
-# ----------------------------
-df.columns = df.columns.str.strip()
-attendance_df.columns = attendance_df.columns.str.strip()
-
-df = df.rename(columns={
+members = members.rename(columns={
     "First Name?": "First Name",
     "Surname?": "Surname",
     "Cellphone?": "Cellphone",
     "Employment Status?": "Employment Status"
 })
 
-df["Timestamp"] = pd.to_datetime(df["Timestamp"], errors="coerce")
-attendance_df["Date"] = pd.to_datetime(attendance_df["Date"], errors="coerce")
+members["Timestamp"] = pd.to_datetime(members["Timestamp"], errors="coerce")
+attendance["Date"] = pd.to_datetime(attendance["Date"], errors="coerce")
 
 # ----------------------------
 # AUTO FIRST VISIT
 # ----------------------------
 today = datetime.now().strftime("%Y-%m-%d")
 
-for _, member in df.iterrows():
-    member_id = str(member["MemberID"])
-
-    existing = attendance_df[
-        attendance_df["MemberID"] == member_id
-    ]
-
-    if existing.empty:
-        attendance_sheet.append_row([
+for _, m in members.iterrows():
+    if attendance[attendance["MemberID"] == str(m["MemberID"])].empty:
+        client.open("ChurchApp").worksheet("Attendance").append_row([
             today,
             datetime.now().strftime("%H:%M"),
             "Auto Registration",
-            member_id,
-            member["First Name"] + " " + member["Surname"],
+            m["MemberID"],
+            m["First Name"] + " " + m["Surname"],
             "First Visit",
-            member["Province"],
-            member["Branch"],
-            member["Gender"],
-            member["Region"],
-            member["Employment Status"]
+            m["Province"],
+            m["Branch"],
+            m["Gender"],
+            m["Region"],
+            m["Employment Status"]
         ])
 
 # ----------------------------
-# FILTER BY CHURCH
+# FILTER
 # ----------------------------
 church = st.session_state.get("church")
-df = df[df["Branch"] == church]
-attendance_df = attendance_df[attendance_df["Branch"] == church]
+members = members[members["Branch"] == church]
+attendance = attendance[attendance["Branch"] == church]
 
-# ----------------------------
-# SIDEBAR FILTERS
-# ----------------------------
-st.sidebar.header("🔍 Filters")
+st.sidebar.header("Filters")
 
-gender_filter = st.sidebar.multiselect(
-    "Gender",
-    sorted(df["Gender"].dropna().unique()),
-    default=sorted(df["Gender"].dropna().unique())
-)
+gender = st.sidebar.multiselect("Gender", members["Gender"].unique(), default=members["Gender"].unique())
+province = st.sidebar.multiselect("Province", members["Province"].unique(), default=members["Province"].unique())
+branch = st.sidebar.multiselect("Branch", members["Branch"].unique(), default=members["Branch"].unique())
+region = st.sidebar.multiselect("Region", members["Region"].unique(), default=members["Region"].unique())
+employment = st.sidebar.multiselect("Employment Status", members["Employment Status"].unique(), default=members["Employment Status"].unique())
 
-province_filter = st.sidebar.multiselect(
-    "Province",
-    sorted(df["Province"].dropna().unique()),
-    default=sorted(df["Province"].dropna().unique())
-)
-
-branch_filter = st.sidebar.multiselect(
-    "Branch",
-    sorted(df["Branch"].dropna().unique()),
-    default=sorted(df["Branch"].dropna().unique())
-)
-
-region_filter = st.sidebar.multiselect(
-    "Region",
-    sorted(df["Region"].dropna().unique()),
-    default=sorted(df["Region"].dropna().unique())
-)
-
-employment_filter = st.sidebar.multiselect(
-    "Employment Status",
-    sorted(df["Employment Status"].dropna().unique()),
-    default=sorted(df["Employment Status"].dropna().unique())
-)
-
-# Apply filters
-filtered_df = df[
-    (df["Gender"].isin(gender_filter)) &
-    (df["Province"].isin(province_filter)) &
-    (df["Branch"].isin(branch_filter)) &
-    (df["Region"].isin(region_filter)) &
-    (df["Employment Status"].isin(employment_filter))
+members_f = members[
+    (members["Gender"].isin(gender)) &
+    (members["Province"].isin(province)) &
+    (members["Branch"].isin(branch)) &
+    (members["Region"].isin(region)) &
+    (members["Employment Status"].isin(employment))
 ]
 
-filtered_attendance = attendance_df[
-    (attendance_df["Gender"].isin(gender_filter)) &
-    (attendance_df["Province"].isin(province_filter)) &
-    (attendance_df["Branch"].isin(branch_filter)) &
-    (attendance_df["Region"].isin(region_filter)) &
-    (attendance_df["Employment Status"].isin(employment_filter))
+attendance_f = attendance[
+    (attendance["Gender"].isin(gender)) &
+    (attendance["Province"].isin(province)) &
+    (attendance["Branch"].isin(branch)) &
+    (attendance["Region"].isin(region)) &
+    (attendance["Employment Status"].isin(employment))
 ]
 
 # ----------------------------
 # KPIs
 # ----------------------------
-st.title("⛪ Church Intelligence Dashboard")
+st.title("⛪ Church Dashboard")
 
-col1, col2, col3 = st.columns(3)
-
-col1.metric("👥 Total Members", len(filtered_df))
-col2.metric("📊 Total Attendance", len(filtered_attendance))
-col3.metric("🆕 First Visits", len(filtered_attendance[filtered_attendance["Status"] == "First Visit"]))
-
-# ----------------------------
-# MEMBERS ANALYSIS
-# ----------------------------
-st.header("👥 Members Analysis")
-
-col1, col2 = st.columns(2)
-
-with col1:
-    fig = px.pie(filtered_df, names="Gender", title="Members by Gender")
-    st.plotly_chart(fig, use_container_width=True)
-
-with col2:
-    fig = px.bar(filtered_df["Province"].value_counts(), title="Members by Province")
-    st.plotly_chart(fig, use_container_width=True)
+c1, c2, c3 = st.columns(3)
+c1.metric("Members", len(members_f))
+c2.metric("Attendance", len(attendance_f))
+c3.metric("First Visits", len(attendance_f[attendance_f["Status"] == "First Visit"]))
 
 # ----------------------------
-# EMPLOYMENT ANALYSIS
+# MEMBERS CHART
 # ----------------------------
-st.subheader("💼 Employment Status")
-
-fig = px.bar(
-    filtered_df["Employment Status"].value_counts(),
-    title="Employment Distribution"
-)
-st.plotly_chart(fig, use_container_width=True)
+st.subheader("Members by Gender")
+st.plotly_chart(px.pie(members_f, names="Gender"))
 
 # ----------------------------
-# ATTENDANCE ANALYSIS
+# EMPLOYMENT CHART
 # ----------------------------
-st.header("📊 Attendance Analysis")
-
-col1, col2 = st.columns(2)
-
-with col1:
-    fig = px.bar(filtered_attendance["Service"].value_counts(), title="Attendance by Service")
-    st.plotly_chart(fig, use_container_width=True)
-
-with col2:
-    fig = px.pie(filtered_attendance, names="Status", title="Attendance Status")
-    st.plotly_chart(fig, use_container_width=True)
+st.subheader("Employment Status")
+emp_df = members_f["Employment Status"].value_counts().reset_index()
+emp_df.columns = ["Employment Status", "Count"]
+st.plotly_chart(px.bar(emp_df, x="Employment Status", y="Count"))
 
 # ----------------------------
-# GROWTH CHART
+# ATTENDANCE BY SERVICE
 # ----------------------------
-st.header("📈 Growth: Members vs Attendance")
-
-members_growth = filtered_df.groupby(filtered_df["Timestamp"].dt.date).size()
-attendance_growth = filtered_attendance.groupby(filtered_attendance["Date"].dt.date).size()
-
-growth_df = pd.DataFrame({
-    "Members": members_growth,
-    "Attendance": attendance_growth
-}).fillna(0)
-
-fig = px.line(growth_df, title="Growth Over Time", markers=True)
-st.plotly_chart(fig, use_container_width=True)
+st.subheader("Attendance by Service")
+service_df = attendance_f["Service"].value_counts().reset_index()
+service_df.columns = ["Service", "Count"]
+st.plotly_chart(px.bar(service_df, x="Service", y="Count"))
 
 # ----------------------------
-# TOP MEMBERS
+# GROWTH
 # ----------------------------
-st.header("🏆 Top Members")
+st.subheader("Growth Over Time")
 
-top_members = filtered_attendance["Name"].value_counts().head(10)
+mem_growth = members_f.groupby(members_f["Timestamp"].dt.date).size().reset_index(name="Members")
+att_growth = attendance_f.groupby(attendance_f["Date"].dt.date).size().reset_index(name="Attendance")
 
-fig = px.bar(
-    x=top_members.values,
-    y=top_members.index,
-    orientation="h",
-    title="Top Attending Members"
-)
+growth = pd.merge(mem_growth, att_growth, on="Timestamp", how="outer").fillna(0)
 
-st.plotly_chart(fig, use_container_width=True)
+st.plotly_chart(px.line(growth, x="Timestamp", y=["Members", "Attendance"], markers=True))
+
+# ----------------------------
+# TOP MEMBERS (FIXED)
+# ----------------------------
+st.subheader("Top Members")
+
+top = attendance_f["Name"].value_counts().head(10).reset_index()
+top.columns = ["Name", "Count"]
+
+st.plotly_chart(px.bar(top, x="Count", y="Name", orientation="h"))
 
 # ----------------------------
 # TIME ANALYSIS
 # ----------------------------
-filtered_attendance["Hour"] = filtered_attendance["Time"].str[:2]
+attendance_f["Hour"] = attendance_f["Time"].str[:2]
+time_df = attendance_f["Hour"].value_counts().sort_index().reset_index()
+time_df.columns = ["Hour", "Count"]
 
-fig = px.bar(
-    filtered_attendance["Hour"].value_counts().sort_index(),
-    title="Check-in Times"
-)
-
-st.plotly_chart(fig, use_container_width=True)
+st.plotly_chart(px.bar(time_df, x="Hour", y="Count"))
 
 # ----------------------------
 # LOGOUT
