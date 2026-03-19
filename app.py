@@ -212,5 +212,5 @@ with tab3:
 # LOGOUT BUTTON
 # ----------------------------
 if st.sidebar.button("Logout"):
-    st.session_state["logged_in"] = False
-    st.experimental_rerun()
+    st.session_state.clear() 
+    st.rerun()                
