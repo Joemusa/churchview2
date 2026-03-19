@@ -8,10 +8,7 @@ from datetime import datetime
 # ----------------------------
 # PAGE CONFIG
 # ----------------------------
-st.set_page_config(
-    page_title="Church Intelligence Dashboard",
-    layout="wide"
-)
+st.set_page_config(page_title="Church Intelligence Dashboard", layout="wide")
 
 # ----------------------------
 # CONNECT
@@ -67,8 +64,11 @@ if not st.session_state["logged_in"]:
 # ----------------------------
 # LOAD DATA
 # ----------------------------
-members = pd.DataFrame(client.open("ChurchApp").worksheet("Members").get_all_records())
-attendance = pd.DataFrame(client.open("ChurchApp").worksheet("Attendance").get_all_records())
+members_sheet = client.open("ChurchApp").worksheet("Members")
+attendance_sheet = client.open("ChurchApp").worksheet("Attendance")
+
+members = pd.DataFrame(members_sheet.get_all_records())
+attendance = pd.DataFrame(attendance_sheet.get_all_records())
 
 members.columns = members.columns.str.strip()
 attendance.columns = attendance.columns.str.strip()
@@ -119,7 +119,7 @@ attendance_f = attendance[
 st.title("⛪ Church Intelligence Dashboard")
 
 # ----------------------------
-# KPI ROW
+# KPI
 # ----------------------------
 k1, k2, k3, k4 = st.columns(4)
 
@@ -129,71 +129,68 @@ k3.metric("First Visits", len(attendance_f[attendance_f["Status"] == "First Visi
 k4.metric("Branches", members_f["Branch"].nunique())
 
 # ----------------------------
-# TABS (NO SCROLL DESIGN)
+# MAIN TABS
 # ----------------------------
-tab1, tab2 = st.tabs(["📊 Overview", "📈 Growth & Trends"])
+tab1, tab2, tab3 = st.tabs(["📊 Dashboard", "👥 Members Table", "📋 Attendance Table"])
 
 # ============================
-# TAB 1: OVERVIEW
+# TAB 1: DASHBOARD
 # ============================
 with tab1:
 
     col1, col2 = st.columns(2)
 
-    # Gender
     with col1:
-        fig = px.pie(members_f, names="Gender", title="Gender Distribution")
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(px.pie(members_f, names="Gender", title="Gender Distribution"), use_container_width=True)
 
-    # Employment
     with col2:
         emp = members_f["Employment Status"].value_counts().reset_index()
         emp.columns = ["Employment", "Count"]
-        fig = px.bar(emp, x="Employment", y="Count", title="Employment Status")
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(px.bar(emp, x="Employment", y="Count", title="Employment Status"), use_container_width=True)
 
     col3, col4 = st.columns(2)
 
-    # Province
     with col3:
         prov = members_f["Province"].value_counts().reset_index()
         prov.columns = ["Province", "Count"]
-        fig = px.bar(prov, x="Province", y="Count", title="Members by Province")
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(px.bar(prov, x="Province", y="Count", title="Members by Province"), use_container_width=True)
 
-    # Attendance by Service
     with col4:
         serv = attendance_f["Service"].value_counts().reset_index()
         serv.columns = ["Service", "Count"]
-        fig = px.bar(serv, x="Service", y="Count", title="Attendance by Service")
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(px.bar(serv, x="Service", y="Count", title="Attendance by Service"), use_container_width=True)
 
 # ============================
-# TAB 2: GROWTH
+# TAB 2: MEMBERS TABLE
 # ============================
 with tab2:
 
-    col1, col2 = st.columns(2)
+    st.subheader("👥 Members")
 
-    # Growth chart
-    mem_growth = members_f.groupby(members_f["Timestamp"].dt.date).size().reset_index(name="Members")
-    mem_growth.columns = ["Date", "Members"]
+    st.dataframe(members_f, use_container_width=True)
 
-    att_growth = attendance_f.groupby(attendance_f["Date"].dt.date).size().reset_index(name="Attendance")
-    att_growth.columns = ["Date", "Attendance"]
+    if st.button("📤 Export Members to Google Sheets"):
+        export_sheet = client.open("ChurchApp").worksheet("Members_Export")
+        export_sheet.clear()
+        export_sheet.append_row(list(members_f.columns))
+        export_sheet.append_rows(members_f.values.tolist())
+        st.success("Members exported successfully!")
 
-    growth = pd.merge(mem_growth, att_growth, on="Date", how="outer").fillna(0)
+# ============================
+# TAB 3: ATTENDANCE TABLE
+# ============================
+with tab3:
 
-    with col1:
-        fig = px.line(growth, x="Date", y=["Members", "Attendance"], title="Growth Over Time")
-        st.plotly_chart(fig, use_container_width=True)
+    st.subheader("📋 Attendance")
 
-    # Top members
-    with col2:
-        top = attendance_f["Name"].value_counts().head(10).reset_index()
-        top.columns = ["Name", "Count"]
-        fig = px.bar(top, x="Count", y="Name", orientation="h", title="Top Members")
-        st.plotly_chart(fig, use_container_width=True)
+    st.dataframe(attendance_f, use_container_width=True)
+
+    if st.button("📤 Export Attendance to Google Sheets"):
+        export_sheet = client.open("ChurchApp").worksheet("Attendance_Export")
+        export_sheet.clear()
+        export_sheet.append_row(list(attendance_f.columns))
+        export_sheet.append_rows(attendance_f.values.tolist())
+        st.success("Attendance exported successfully!")
 
 # ----------------------------
 # LOGOUT
