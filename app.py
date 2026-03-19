@@ -227,4 +227,58 @@ with tab3:
 # ----------------------------
 if st.sidebar.button("Logout"):
     st.session_state.clear() 
-    st.rerun()                
+    st.rerun()   
+
+st.title("📊 Attendance Dashboard")
+
+# Load attendance sheet
+attendance_sheet = client.open("ChurchApp").worksheet("Attendance")
+attendance_data = attendance_sheet.get_all_records()
+attendance_df = pd.DataFrame(attendance_data)
+
+attendance_df.columns = attendance_df.columns.str.strip()
+attendance_df["Date"] = pd.to_datetime(attendance_df["Date"], errors="coerce")
+
+# ----------------------------
+# FILTER
+# ----------------------------
+selected_service = st.selectbox(
+    "Filter by Service",
+    ["All"] + list(attendance_df["Service"].dropna().unique())
+)
+
+if selected_service != "All":
+    attendance_df = attendance_df[attendance_df["Service"] == selected_service]
+
+# ----------------------------
+# DAILY ATTENDANCE
+# ----------------------------
+st.subheader("📈 Daily Attendance")
+daily_attendance = attendance_df.groupby("Date").size()
+st.line_chart(daily_attendance)
+
+# ----------------------------
+# SERVICE DISTRIBUTION
+# ----------------------------
+st.subheader("⛪ Attendance by Service")
+st.bar_chart(attendance_df["Service"].value_counts())
+
+# ----------------------------
+# STATUS DISTRIBUTION
+# ----------------------------
+st.subheader("👥 Member Status")
+st.bar_chart(attendance_df["Status"].value_counts())
+
+# ----------------------------
+# TOP MEMBERS
+# ----------------------------
+st.subheader("🏆 Top Members")
+st.bar_chart(attendance_df["Name"].value_counts().head(5))
+
+# ----------------------------
+# TIME ANALYSIS
+# ----------------------------
+attendance_df["Hour"] = attendance_df["Time"].str[:2]
+
+st.subheader("⏰ Check-in Times")
+st.bar_chart(attendance_df["Hour"].value_counts().sort_index())
