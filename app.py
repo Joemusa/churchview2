@@ -1,223 +1,191 @@
 import streamlit as st
 import pandas as pd
 import gspread
-import plotly.express as px
-from google.oauth2.service_account import Credentials
+from datetime import datetime
+import time
+
+st.set_page_config(layout="centered")
+
+st.title("⛪ Church Check-In")
 
 # ----------------------------
-# CONFIG
+# CONNECT TO GOOGLE SHEETS
 # ----------------------------
-st.set_page_config(page_title="Church Dashboard", layout="wide")
-
-# ----------------------------
-# CONNECT
-# ----------------------------
-scope = [
-    "https://www.googleapis.com/auth/spreadsheets",
-    "https://www.googleapis.com/auth/drive"
-]
-
-creds = Credentials.from_service_account_info(
-    st.secrets["gcp_service_account"],
-    scopes=scope
+client = gspread.service_account_from_dict(
+    st.secrets["gcp_service_account"]
 )
 
-client = gspread.authorize(creds)
+spreadsheet = client.open("ChurchApp")
 
-# ----------------------------
-# LOGIN
-# ----------------------------
-def load_users():
-    return pd.DataFrame(client.open("ChurchApp").worksheet("Users").get_all_records())
-
-def login():
-    users = load_users()
-
-    st.title("🔐 Login")
-
-    email = st.text_input("Email")
-    password = st.text_input("Password", type="password")
-
-    if st.button("Login"):
-        users.columns = users.columns.str.strip().str.lower()
-
-        user = users[
-            (users["email"].str.lower().str.strip() == email.lower().strip()) &
-            (users["password"].astype(str).str.strip() == password.strip())
-        ]
-
-        if not user.empty:
-            st.session_state["logged_in"] = True
-            st.session_state["church"] = user.iloc[0]["church"]
-            st.rerun()
-        else:
-            st.error("Invalid credentials")
-
-if "logged_in" not in st.session_state:
-    st.session_state["logged_in"] = False
-
-if not st.session_state["logged_in"]:
-    login()
-    st.stop()
+members_sheet = spreadsheet.worksheet("Members")
+attendance_sheet = spreadsheet.worksheet("Attendance")
 
 # ----------------------------
 # LOAD DATA
 # ----------------------------
-members = pd.DataFrame(client.open("ChurchApp").worksheet("Members").get_all_records())
-attendance = pd.DataFrame(client.open("ChurchApp").worksheet("Attendance").get_all_records())
+members = pd.DataFrame(members_sheet.get_all_records())
+attendance = pd.DataFrame(attendance_sheet.get_all_records())
 
 members.columns = members.columns.str.strip()
 attendance.columns = attendance.columns.str.strip()
 
+# Rename for consistency
 members = members.rename(columns={
     "First Name?": "First Name",
     "Surname?": "Surname",
+    "Cellphone?": "Cellphone",
     "Employment Status?": "Employment Status"
 })
 
-members["Timestamp"] = pd.to_datetime(members["Timestamp"], errors="coerce")
-attendance["Date"] = pd.to_datetime(attendance["Date"], errors="coerce")
-
 # ----------------------------
-# FILTER BY CHURCH
+# SELECT SERVICE
 # ----------------------------
-church = st.session_state.get("church")
+service = st.selectbox(
+    "Select Service",
+    ["Sunday Service", "Youth Service", "Prayer Meeting", "Special Event"]
+)
 
-members = members[members["Branch"] == church]
+today = datetime.now().strftime("%Y-%m-%d")
+current_time = datetime.now().strftime("%H:%M")
 
-# ----------------------------
-# SAFE ATTENDANCE FILTER
-# ----------------------------
-attendance_f = attendance.copy()
+# =========================================================
+# 🔥 AUTO FIRST VISIT (GOOGLE FORM SUBMISSIONS)
+# =========================================================
+for _, member in members.iterrows():
 
-if "Branch" in attendance.columns:
-    attendance_f = attendance_f[attendance_f["Branch"] == church]
+    member_id = str(member["MemberID"])
 
-# ----------------------------
-# SIDEBAR FILTERS
-# ----------------------------
-st.sidebar.header("🔍 Filters")
+    existing = attendance[
+        attendance["MemberID"] == member_id
+    ]
 
-gender = st.sidebar.multiselect("Gender", members["Gender"].dropna().unique(), default=members["Gender"].dropna().unique())
-province = st.sidebar.multiselect("Province", members["Province"].dropna().unique(), default=members["Province"].dropna().unique())
-region = st.sidebar.multiselect("Region", members["Region"].dropna().unique(), default=members["Region"].dropna().unique())
-employment = st.sidebar.multiselect("Employment", members["Employment Status"].dropna().unique(), default=members["Employment Status"].dropna().unique())
+    if existing.empty:
 
-members_f = members[
-    (members["Gender"].isin(gender)) &
-    (members["Province"].isin(province)) &
-    (members["Region"].isin(region)) &
-    (members["Employment Status"].isin(employment))
-]
+        attendance_sheet.append_row([
+            today,
+            current_time,
+            "Auto Registration",
+            member_id,
+            member["First Name"] + " " + member["Surname"],
+            "First Visit",
+            member.get("Province", ""),
+            member.get("Branch", ""),
+            member.get("Gender", ""),
+            member.get("Region", ""),
+            member.get("Employment Status", "")
+        ])
 
-# Apply filters ONLY if columns exist in attendance
-if "Gender" in attendance_f.columns:
-    attendance_f = attendance_f[attendance_f["Gender"].isin(gender)]
+# =========================================================
+# 🔥 QR CODE CHECK-IN
+# =========================================================
+query_params = st.query_params
+member_qr = query_params.get("member")
 
-if "Province" in attendance_f.columns:
-    attendance_f = attendance_f[attendance_f["Province"].isin(province)]
+if member_qr:
 
-if "Region" in attendance_f.columns:
-    attendance_f = attendance_f[attendance_f["Region"].isin(region)]
+    member = members[members["MemberID"] == member_qr]
 
-if "Employment Status" in attendance_f.columns:
-    attendance_f = attendance_f[attendance_f["Employment Status"].isin(employment)]
+    if not member.empty:
 
-# ----------------------------
-# TITLE
-# ----------------------------
-st.title("⛪ Church Dashboard")
+        member = member.iloc[0]
 
-# ----------------------------
-# KPIs
-# ----------------------------
-k1, k2, k3, k4 = st.columns(4)
+        # Prevent duplicate check-in for same service & day
+        duplicate = attendance[
+            (attendance["MemberID"] == member_qr) &
+            (attendance["Date"] == today) &
+            (attendance["Service"] == service)
+        ]
 
-k1.metric("Members", len(members_f))
-k2.metric("Attendance", len(attendance_f))
-k3.metric("First Visits", len(attendance_f[attendance_f["Status"] == "First Visit"]) if "Status" in attendance_f.columns else 0)
-k4.metric("Branches", members_f["Branch"].nunique())
+        if not duplicate.empty:
+            st.warning("Already checked in today")
+            st.stop()
 
-# ----------------------------
-# TABS
-# ----------------------------
-tab1, tab2, tab3, tab4 = st.tabs([
-    "📊 Dashboard",
-    "📈 Growth",
-    "👥 Members",
-    "📋 Attendance"
-])
+        # Visit count
+        history = attendance[attendance["MemberID"] == member_qr]
+        visits = len(history) + 1
 
-# ============================
-# DASHBOARD
-# ============================
-with tab1:
-
-    c1, c2 = st.columns(2)
-
-    with c1:
-        if not members_f.empty:
-            st.plotly_chart(px.pie(members_f, names="Gender", title="Gender"), use_container_width=True)
-
-    with c2:
-        emp = members_f["Employment Status"].value_counts().reset_index()
-        emp.columns = ["Employment Status", "Count"]
-        st.plotly_chart(px.bar(emp, x="Employment Status", y="Count", title="Employment"), use_container_width=True)
-
-    c3, c4 = st.columns(2)
-
-    with c3:
-        prov = members_f["Province"].value_counts().reset_index()
-        prov.columns = ["Province", "Count"]
-        st.plotly_chart(px.bar(prov, x="Province", y="Count", title="Province"), use_container_width=True)
-
-    with c4:
-        if not attendance_f.empty and "Service" in attendance_f.columns:
-            serv = attendance_f["Service"].value_counts().reset_index()
-            serv.columns = ["Service", "Count"]
-
-            st.plotly_chart(
-                px.bar(serv, x="Service", y="Count", title="Service"),
-                use_container_width=True
-            )
+        if visits == 1:
+            status = "First Visit"
+        elif visits == 2:
+            status = "Second Visit"
         else:
-            st.warning("No Service data available")
+            status = "Regular Member"
 
-# ============================
-# GROWTH
-# ============================
-with tab2:
+        attendance_sheet.append_row([
+            today,
+            current_time,
+            service,
+            member_qr,
+            member["First Name"] + " " + member["Surname"],
+            status,
+            member.get("Province", ""),
+            member.get("Branch", ""),
+            member.get("Gender", ""),
+            member.get("Region", ""),
+            member.get("Employment Status", "")
+        ])
 
-    if not members_f.empty and not attendance_f.empty:
+        st.success(f"Welcome {member['First Name']} ({status})")
+        time.sleep(2)
+        st.rerun()
 
-        mem_growth = members_f.groupby(members_f["Timestamp"].dt.date).size().reset_index(name="Members")
-        mem_growth.columns = ["Date", "Members"]
+# =========================================================
+# 🔥 4-DIGIT CHECK-IN
+# =========================================================
+digits = st.text_input("Enter last 4 digits of your phone")
 
-        att_growth = attendance_f.groupby(attendance_f["Date"].dt.date).size().reset_index(name="Attendance")
-        att_growth.columns = ["Date", "Attendance"]
+if digits and len(digits) == 4:
 
-        growth = pd.merge(mem_growth, att_growth, on="Date", how="outer").fillna(0)
+    matches = members[members["Cellphone"].astype(str).str.endswith(digits)]
 
-        st.plotly_chart(px.line(growth, x="Date", y=["Members", "Attendance"]), use_container_width=True)
-
+    if matches.empty:
+        st.error("Member not found")
     else:
-        st.warning("Not enough data for growth chart")
+        matches["FullName"] = matches["First Name"] + " " + matches["Surname"]
 
-# ============================
-# MEMBERS
-# ============================
-with tab3:
-    st.dataframe(members_f, use_container_width=True)
+        selected = st.selectbox("Select your name", matches["FullName"])
 
-# ============================
-# ATTENDANCE
-# ============================
-with tab4:
-    st.dataframe(attendance_f, use_container_width=True)
+        if st.button("Confirm Check-In"):
 
-# ----------------------------
-# LOGOUT
-# ----------------------------
-if st.sidebar.button("Logout"):
-    st.session_state.clear()
-    st.rerun()
+            member = matches[matches["FullName"] == selected].iloc[0]
+            member_id = str(member["MemberID"])
+
+            # Prevent duplicates
+            duplicate = attendance[
+                (attendance["MemberID"] == member_id) &
+                (attendance["Date"] == today) &
+                (attendance["Service"] == service)
+            ]
+
+            if not duplicate.empty:
+                st.warning("Already checked in today")
+                st.stop()
+
+            # Visit count
+            history = attendance[attendance["MemberID"] == member_id]
+            visits = len(history) + 1
+
+            if visits == 1:
+                status = "First Visit"
+            elif visits == 2:
+                status = "Second Visit"
+            else:
+                status = "Regular Member"
+
+            attendance_sheet.append_row([
+                today,
+                current_time,
+                service,
+                member_id,
+                member["First Name"] + " " + member["Surname"],
+                status,
+                member.get("Province", ""),
+                member.get("Branch", ""),
+                member.get("Gender", ""),
+                member.get("Region", ""),
+                member.get("Employment Status", "")
+            ])
+
+            st.success(f"Check-in successful ({status})")
+            time.sleep(2)
+            st.rerun()
