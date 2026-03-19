@@ -97,7 +97,7 @@ members_f = members[
     (members["Province"].isin(province)) &
     (members["Region"].isin(region)) &
     (members["Employment Status"].isin(employment))
-]
+    ]
 
 attendance_f = attendance[
     (attendance["Gender"].isin(gender)) &
