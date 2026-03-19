@@ -6,12 +6,12 @@ from google.oauth2.service_account import Credentials
 from datetime import datetime
 
 # ----------------------------
-# PAGE CONFIG
+# CONFIG
 # ----------------------------
-st.set_page_config(page_title="Church Intelligence System", layout="wide")
+st.set_page_config(page_title="Church Dashboard", layout="wide")
 
 # ----------------------------
-# GOOGLE SHEETS CONNECTION
+# CONNECT
 # ----------------------------
 scope = [
     "https://www.googleapis.com/auth/spreadsheets",
@@ -26,24 +26,23 @@ creds = Credentials.from_service_account_info(
 client = gspread.authorize(creds)
 
 # ----------------------------
-# LOGIN SYSTEM
+# LOGIN
 # ----------------------------
 def load_users():
     return pd.DataFrame(client.open("ChurchApp").worksheet("Users").get_all_records())
 
 def login():
     users = load_users()
-
     email = st.text_input("Email")
     password = st.text_input("Password", type="password")
 
     if st.button("Login"):
         users.columns = users.columns.str.strip().str.lower()
-        users["email"] = users["email"].str.strip().str.lower()
+        users["email"] = users["email"].str.lower().str.strip()
         users["password"] = users["password"].astype(str).str.strip()
 
         user = users[
-            (users["email"] == email.strip().lower()) &
+            (users["email"] == email.lower().strip()) &
             (users["password"] == password.strip())
         ]
 
@@ -54,9 +53,6 @@ def login():
         else:
             st.error("Invalid credentials")
 
-# ----------------------------
-# SESSION CONTROL
-# ----------------------------
 if "logged_in" not in st.session_state:
     st.session_state["logged_in"] = False
 
@@ -80,44 +76,27 @@ members = members.rename(columns={
     "Employment Status?": "Employment Status"
 })
 
+# Convert dates safely
 members["Timestamp"] = pd.to_datetime(members["Timestamp"], errors="coerce")
 attendance["Date"] = pd.to_datetime(attendance["Date"], errors="coerce")
 
 # ----------------------------
-# AUTO FIRST VISIT
-# ----------------------------
-today = datetime.now().strftime("%Y-%m-%d")
-
-for _, m in members.iterrows():
-    if attendance[attendance["MemberID"] == str(m["MemberID"])].empty:
-        client.open("ChurchApp").worksheet("Attendance").append_row([
-            today,
-            datetime.now().strftime("%H:%M"),
-            "Auto Registration",
-            m["MemberID"],
-            m["First Name"] + " " + m["Surname"],
-            "First Visit",
-            m["Province"],
-            m["Branch"],
-            m["Gender"],
-            m["Region"],
-            m["Employment Status"]
-        ])
-
-# ----------------------------
-# FILTER
+# FILTER CHURCH
 # ----------------------------
 church = st.session_state.get("church")
 members = members[members["Branch"] == church]
 attendance = attendance[attendance["Branch"] == church]
 
+# ----------------------------
+# SIDEBAR FILTERS
+# ----------------------------
 st.sidebar.header("Filters")
 
-gender = st.sidebar.multiselect("Gender", members["Gender"].unique(), default=members["Gender"].unique())
-province = st.sidebar.multiselect("Province", members["Province"].unique(), default=members["Province"].unique())
-branch = st.sidebar.multiselect("Branch", members["Branch"].unique(), default=members["Branch"].unique())
-region = st.sidebar.multiselect("Region", members["Region"].unique(), default=members["Region"].unique())
-employment = st.sidebar.multiselect("Employment Status", members["Employment Status"].unique(), default=members["Employment Status"].unique())
+gender = st.sidebar.multiselect("Gender", members["Gender"].dropna().unique(), default=members["Gender"].dropna().unique())
+province = st.sidebar.multiselect("Province", members["Province"].dropna().unique(), default=members["Province"].dropna().unique())
+branch = st.sidebar.multiselect("Branch", members["Branch"].dropna().unique(), default=members["Branch"].dropna().unique())
+region = st.sidebar.multiselect("Region", members["Region"].dropna().unique(), default=members["Region"].dropna().unique())
+employment = st.sidebar.multiselect("Employment Status", members["Employment Status"].dropna().unique(), default=members["Employment Status"].dropna().unique())
 
 members_f = members[
     (members["Gender"].isin(gender)) &
@@ -136,7 +115,7 @@ attendance_f = attendance[
 ]
 
 # ----------------------------
-# KPIs
+# KPI
 # ----------------------------
 st.title("⛪ Church Dashboard")
 
@@ -152,38 +131,37 @@ st.subheader("Members by Gender")
 st.plotly_chart(px.pie(members_f, names="Gender"))
 
 # ----------------------------
-# EMPLOYMENT CHART
+# EMPLOYMENT
 # ----------------------------
-st.subheader("Employment Status")
-emp_df = members_f["Employment Status"].value_counts().reset_index()
-emp_df.columns = ["Employment Status", "Count"]
-st.plotly_chart(px.bar(emp_df, x="Employment Status", y="Count"))
+emp = members_f["Employment Status"].value_counts().reset_index()
+emp.columns = ["Employment Status", "Count"]
+st.plotly_chart(px.bar(emp, x="Employment Status", y="Count"))
 
 # ----------------------------
-# ATTENDANCE BY SERVICE
+# ATTENDANCE SERVICE
 # ----------------------------
-st.subheader("Attendance by Service")
-service_df = attendance_f["Service"].value_counts().reset_index()
-service_df.columns = ["Service", "Count"]
-st.plotly_chart(px.bar(service_df, x="Service", y="Count"))
+service = attendance_f["Service"].value_counts().reset_index()
+service.columns = ["Service", "Count"]
+st.plotly_chart(px.bar(service, x="Service", y="Count"))
 
 # ----------------------------
-# GROWTH
+# GROWTH FIXED
 # ----------------------------
 st.subheader("Growth Over Time")
 
 mem_growth = members_f.groupby(members_f["Timestamp"].dt.date).size().reset_index(name="Members")
+mem_growth.columns = ["Date", "Members"]
+
 att_growth = attendance_f.groupby(attendance_f["Date"].dt.date).size().reset_index(name="Attendance")
+att_growth.columns = ["Date", "Attendance"]
 
-growth = pd.merge(mem_growth, att_growth, on="Timestamp", how="outer").fillna(0)
+growth = pd.merge(mem_growth, att_growth, on="Date", how="outer").fillna(0)
 
-st.plotly_chart(px.line(growth, x="Timestamp", y=["Members", "Attendance"], markers=True))
+st.plotly_chart(px.line(growth, x="Date", y=["Members", "Attendance"], markers=True))
 
 # ----------------------------
-# TOP MEMBERS (FIXED)
+# TOP MEMBERS FIXED
 # ----------------------------
-st.subheader("Top Members")
-
 top = attendance_f["Name"].value_counts().head(10).reset_index()
 top.columns = ["Name", "Count"]
 
@@ -192,7 +170,7 @@ st.plotly_chart(px.bar(top, x="Count", y="Name", orientation="h"))
 # ----------------------------
 # TIME ANALYSIS
 # ----------------------------
-attendance_f["Hour"] = attendance_f["Time"].str[:2]
+attendance_f["Hour"] = attendance_f["Time"].astype(str).str[:2]
 time_df = attendance_f["Hour"].value_counts().sort_index().reset_index()
 time_df.columns = ["Hour", "Count"]
 
