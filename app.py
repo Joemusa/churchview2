@@ -79,33 +79,49 @@ members["Timestamp"] = pd.to_datetime(members["Timestamp"], errors="coerce")
 attendance["Date"] = pd.to_datetime(attendance["Date"], errors="coerce")
 
 # ----------------------------
-# FILTER
+# FILTER BY CHURCH
 # ----------------------------
 church = st.session_state.get("church")
+
 members = members[members["Branch"] == church]
-attendance = attendance[attendance["Branch"] == church]
 
-st.sidebar.header("Filters")
+# ----------------------------
+# SAFE ATTENDANCE FILTER
+# ----------------------------
+attendance_f = attendance.copy()
 
-gender = st.sidebar.multiselect("Gender", members["Gender"].unique(), default=members["Gender"].unique())
-province = st.sidebar.multiselect("Province", members["Province"].unique(), default=members["Province"].unique())
-region = st.sidebar.multiselect("Region", members["Region"].unique(), default=members["Region"].unique())
-employment = st.sidebar.multiselect("Employment", members["Employment Status"].unique(), default=members["Employment Status"].unique())
+if "Branch" in attendance.columns:
+    attendance_f = attendance_f[attendance_f["Branch"] == church]
+
+# ----------------------------
+# SIDEBAR FILTERS
+# ----------------------------
+st.sidebar.header("🔍 Filters")
+
+gender = st.sidebar.multiselect("Gender", members["Gender"].dropna().unique(), default=members["Gender"].dropna().unique())
+province = st.sidebar.multiselect("Province", members["Province"].dropna().unique(), default=members["Province"].dropna().unique())
+region = st.sidebar.multiselect("Region", members["Region"].dropna().unique(), default=members["Region"].dropna().unique())
+employment = st.sidebar.multiselect("Employment", members["Employment Status"].dropna().unique(), default=members["Employment Status"].dropna().unique())
 
 members_f = members[
     (members["Gender"].isin(gender)) &
     (members["Province"].isin(province)) &
     (members["Region"].isin(region)) &
     (members["Employment Status"].isin(employment))
-    ]
-
-attendance_f = attendance[
-    (attendance["Gender"].isin(gender)) &
-    (attendance["Province"].isin(province)) &
-    (attendance["Region"].isin(region)) &
-    (attendance["Employment Status"].isin(employment)) &
-    (attendance["Service"].isin(service))
 ]
+
+# Apply filters ONLY if columns exist in attendance
+if "Gender" in attendance_f.columns:
+    attendance_f = attendance_f[attendance_f["Gender"].isin(gender)]
+
+if "Province" in attendance_f.columns:
+    attendance_f = attendance_f[attendance_f["Province"].isin(province)]
+
+if "Region" in attendance_f.columns:
+    attendance_f = attendance_f[attendance_f["Region"].isin(region)]
+
+if "Employment Status" in attendance_f.columns:
+    attendance_f = attendance_f[attendance_f["Employment Status"].isin(employment)]
 
 # ----------------------------
 # TITLE
@@ -113,12 +129,13 @@ attendance_f = attendance[
 st.title("⛪ Church Dashboard")
 
 # ----------------------------
-# KPI
+# KPIs
 # ----------------------------
 k1, k2, k3, k4 = st.columns(4)
+
 k1.metric("Members", len(members_f))
 k2.metric("Attendance", len(attendance_f))
-k3.metric("First Visits", len(attendance_f[attendance_f["Status"] == "First Visit"]))
+k3.metric("First Visits", len(attendance_f[attendance_f["Status"] == "First Visit"]) if "Status" in attendance_f.columns else 0)
 k4.metric("Branches", members_f["Branch"].nunique())
 
 # ----------------------------
@@ -139,7 +156,8 @@ with tab1:
     c1, c2 = st.columns(2)
 
     with c1:
-        st.plotly_chart(px.pie(members_f, names="Gender", title="Gender"), use_container_width=True)
+        if not members_f.empty:
+            st.plotly_chart(px.pie(members_f, names="Gender", title="Gender"), use_container_width=True)
 
     with c2:
         emp = members_f["Employment Status"].value_counts().reset_index()
@@ -154,24 +172,36 @@ with tab1:
         st.plotly_chart(px.bar(prov, x="Province", y="Count", title="Province"), use_container_width=True)
 
     with c4:
-        serv = attendance_f["Service"].value_counts().reset_index()
-        serv.columns = ["Service", "Count"]
-        st.plotly_chart(px.bar(serv, x="Service", y="Count", title="Service"), use_container_width=True)
+        if not attendance_f.empty and "Service" in attendance_f.columns:
+            serv = attendance_f["Service"].value_counts().reset_index()
+            serv.columns = ["Service", "Count"]
+
+            st.plotly_chart(
+                px.bar(serv, x="Service", y="Count", title="Service"),
+                use_container_width=True
+            )
+        else:
+            st.warning("No Service data available")
 
 # ============================
 # GROWTH
 # ============================
 with tab2:
 
-    mem_growth = members_f.groupby(members_f["Timestamp"].dt.date).size().reset_index(name="Members")
-    mem_growth.columns = ["Date", "Members"]
+    if not members_f.empty and not attendance_f.empty:
 
-    att_growth = attendance_f.groupby(attendance_f["Date"].dt.date).size().reset_index(name="Attendance")
-    att_growth.columns = ["Date", "Attendance"]
+        mem_growth = members_f.groupby(members_f["Timestamp"].dt.date).size().reset_index(name="Members")
+        mem_growth.columns = ["Date", "Members"]
 
-    growth = pd.merge(mem_growth, att_growth, on="Date", how="outer").fillna(0)
+        att_growth = attendance_f.groupby(attendance_f["Date"].dt.date).size().reset_index(name="Attendance")
+        att_growth.columns = ["Date", "Attendance"]
 
-    st.plotly_chart(px.line(growth, x="Date", y=["Members", "Attendance"]), use_container_width=True)
+        growth = pd.merge(mem_growth, att_growth, on="Date", how="outer").fillna(0)
+
+        st.plotly_chart(px.line(growth, x="Date", y=["Members", "Attendance"]), use_container_width=True)
+
+    else:
+        st.warning("Not enough data for growth chart")
 
 # ============================
 # MEMBERS
