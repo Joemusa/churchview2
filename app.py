@@ -6,9 +6,12 @@ from google.oauth2.service_account import Credentials
 from datetime import datetime
 
 # ----------------------------
-# CONFIG
+# PAGE CONFIG
 # ----------------------------
-st.set_page_config(page_title="Church Dashboard", layout="wide")
+st.set_page_config(
+    page_title="Church Intelligence Dashboard",
+    layout="wide"
+)
 
 # ----------------------------
 # CONNECT
@@ -33,17 +36,18 @@ def load_users():
 
 def login():
     users = load_users()
+
+    st.title("🔐 Login")
+
     email = st.text_input("Email")
     password = st.text_input("Password", type="password")
 
     if st.button("Login"):
         users.columns = users.columns.str.strip().str.lower()
-        users["email"] = users["email"].str.lower().str.strip()
-        users["password"] = users["password"].astype(str).str.strip()
 
         user = users[
-            (users["email"] == email.lower().strip()) &
-            (users["password"] == password.strip())
+            (users["email"].str.lower().str.strip() == email.lower().strip()) &
+            (users["password"].astype(str).str.strip() == password.strip())
         ]
 
         if not user.empty:
@@ -72,16 +76,14 @@ attendance.columns = attendance.columns.str.strip()
 members = members.rename(columns={
     "First Name?": "First Name",
     "Surname?": "Surname",
-    "Cellphone?": "Cellphone",
     "Employment Status?": "Employment Status"
 })
 
-# Convert dates safely
 members["Timestamp"] = pd.to_datetime(members["Timestamp"], errors="coerce")
 attendance["Date"] = pd.to_datetime(attendance["Date"], errors="coerce")
 
 # ----------------------------
-# FILTER CHURCH
+# FILTER BY CHURCH
 # ----------------------------
 church = st.session_state.get("church")
 members = members[members["Branch"] == church]
@@ -90,18 +92,16 @@ attendance = attendance[attendance["Branch"] == church]
 # ----------------------------
 # SIDEBAR FILTERS
 # ----------------------------
-st.sidebar.header("Filters")
+st.sidebar.header("🔍 Filters")
 
-gender = st.sidebar.multiselect("Gender", members["Gender"].dropna().unique(), default=members["Gender"].dropna().unique())
-province = st.sidebar.multiselect("Province", members["Province"].dropna().unique(), default=members["Province"].dropna().unique())
-branch = st.sidebar.multiselect("Branch", members["Branch"].dropna().unique(), default=members["Branch"].dropna().unique())
-region = st.sidebar.multiselect("Region", members["Region"].dropna().unique(), default=members["Region"].dropna().unique())
-employment = st.sidebar.multiselect("Employment Status", members["Employment Status"].dropna().unique(), default=members["Employment Status"].dropna().unique())
+gender = st.sidebar.multiselect("Gender", members["Gender"].unique(), default=members["Gender"].unique())
+province = st.sidebar.multiselect("Province", members["Province"].unique(), default=members["Province"].unique())
+region = st.sidebar.multiselect("Region", members["Region"].unique(), default=members["Region"].unique())
+employment = st.sidebar.multiselect("Employment", members["Employment Status"].unique(), default=members["Employment Status"].unique())
 
 members_f = members[
     (members["Gender"].isin(gender)) &
     (members["Province"].isin(province)) &
-    (members["Branch"].isin(branch)) &
     (members["Region"].isin(region)) &
     (members["Employment Status"].isin(employment))
 ]
@@ -109,72 +109,91 @@ members_f = members[
 attendance_f = attendance[
     (attendance["Gender"].isin(gender)) &
     (attendance["Province"].isin(province)) &
-    (attendance["Branch"].isin(branch)) &
     (attendance["Region"].isin(region)) &
     (attendance["Employment Status"].isin(employment))
 ]
 
 # ----------------------------
-# KPI
+# HEADER
 # ----------------------------
-st.title("⛪ Church Dashboard")
-
-c1, c2, c3 = st.columns(3)
-c1.metric("Members", len(members_f))
-c2.metric("Attendance", len(attendance_f))
-c3.metric("First Visits", len(attendance_f[attendance_f["Status"] == "First Visit"]))
+st.title("⛪ Church Intelligence Dashboard")
 
 # ----------------------------
-# MEMBERS CHART
+# KPI ROW
 # ----------------------------
-st.subheader("Members by Gender")
-st.plotly_chart(px.pie(members_f, names="Gender"))
+k1, k2, k3, k4 = st.columns(4)
+
+k1.metric("Members", len(members_f))
+k2.metric("Attendance", len(attendance_f))
+k3.metric("First Visits", len(attendance_f[attendance_f["Status"] == "First Visit"]))
+k4.metric("Branches", members_f["Branch"].nunique())
 
 # ----------------------------
-# EMPLOYMENT
+# TABS (NO SCROLL DESIGN)
 # ----------------------------
-emp = members_f["Employment Status"].value_counts().reset_index()
-emp.columns = ["Employment Status", "Count"]
-st.plotly_chart(px.bar(emp, x="Employment Status", y="Count"))
+tab1, tab2 = st.tabs(["📊 Overview", "📈 Growth & Trends"])
 
-# ----------------------------
-# ATTENDANCE SERVICE
-# ----------------------------
-service = attendance_f["Service"].value_counts().reset_index()
-service.columns = ["Service", "Count"]
-st.plotly_chart(px.bar(service, x="Service", y="Count"))
+# ============================
+# TAB 1: OVERVIEW
+# ============================
+with tab1:
 
-# ----------------------------
-# GROWTH FIXED
-# ----------------------------
-st.subheader("Growth Over Time")
+    col1, col2 = st.columns(2)
 
-mem_growth = members_f.groupby(members_f["Timestamp"].dt.date).size().reset_index(name="Members")
-mem_growth.columns = ["Date", "Members"]
+    # Gender
+    with col1:
+        fig = px.pie(members_f, names="Gender", title="Gender Distribution")
+        st.plotly_chart(fig, use_container_width=True)
 
-att_growth = attendance_f.groupby(attendance_f["Date"].dt.date).size().reset_index(name="Attendance")
-att_growth.columns = ["Date", "Attendance"]
+    # Employment
+    with col2:
+        emp = members_f["Employment Status"].value_counts().reset_index()
+        emp.columns = ["Employment", "Count"]
+        fig = px.bar(emp, x="Employment", y="Count", title="Employment Status")
+        st.plotly_chart(fig, use_container_width=True)
 
-growth = pd.merge(mem_growth, att_growth, on="Date", how="outer").fillna(0)
+    col3, col4 = st.columns(2)
 
-st.plotly_chart(px.line(growth, x="Date", y=["Members", "Attendance"], markers=True))
+    # Province
+    with col3:
+        prov = members_f["Province"].value_counts().reset_index()
+        prov.columns = ["Province", "Count"]
+        fig = px.bar(prov, x="Province", y="Count", title="Members by Province")
+        st.plotly_chart(fig, use_container_width=True)
 
-# ----------------------------
-# TOP MEMBERS FIXED
-# ----------------------------
-top = attendance_f["Name"].value_counts().head(10).reset_index()
-top.columns = ["Name", "Count"]
+    # Attendance by Service
+    with col4:
+        serv = attendance_f["Service"].value_counts().reset_index()
+        serv.columns = ["Service", "Count"]
+        fig = px.bar(serv, x="Service", y="Count", title="Attendance by Service")
+        st.plotly_chart(fig, use_container_width=True)
 
-st.plotly_chart(px.bar(top, x="Count", y="Name", orientation="h"))
+# ============================
+# TAB 2: GROWTH
+# ============================
+with tab2:
 
-# ----------------------------
-# TIME ANALYSIS
-# ----------------------------
-attendance_f["Hour"] = attendance_f["Time"].astype(str).str[:2]
-time_df = attendance_f["Hour"].value_counts().sort_index().reset_index()
-time_df.columns = ["Hour", "Count"]
+    col1, col2 = st.columns(2)
 
-st.plotly_chart(px.bar(time_df, x="Hour", y="Count"))
+    # Growth chart
+    mem_growth = members_f.groupby(members_f["Timestamp"].dt.date).size().reset_index(name="Members")
+    mem_growth.columns = ["Date", "Members"]
+
+    att_growth = attendance_f.groupby(attendance_f["Date"].dt.date).size().reset_index(name="Attendance")
+    att_growth.columns = ["Date", "Attendance"]
+
+    growth = pd.merge(mem_growth, att_growth, on="Date", how="outer").fillna(0)
+
+    with col1:
+        fig = px.line(growth, x="Date", y=["Members", "Attendance"], title="Growth Over Time")
+        st.plotly_chart(fig, use_container_width=True)
+
+    # Top members
+    with col2:
+        top = attendance_f["Name"].value_counts().head(10).reset_index()
+        top.columns = ["Name", "Count"]
+        fig = px.bar(top, x="Count", y="Name", orientation="h", title="Top Members")
+        st.plotly_chart(fig, use_container_width=True)
 
 # ----------------------------
 # LOGOUT
