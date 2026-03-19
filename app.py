@@ -5,12 +5,12 @@ import plotly.express as px
 from google.oauth2.service_account import Credentials
 
 # ----------------------------
-# PAGE CONFIG
+# CONFIG
 # ----------------------------
 st.set_page_config(page_title="Church Dashboard", layout="wide")
 
 # ----------------------------
-# GOOGLE CONNECTION
+# CONNECT
 # ----------------------------
 scope = [
     "https://www.googleapis.com/auth/spreadsheets",
@@ -25,7 +25,7 @@ creds = Credentials.from_service_account_info(
 client = gspread.authorize(creds)
 
 # ----------------------------
-# LOGIN SYSTEM
+# LOGIN
 # ----------------------------
 def load_users():
     return pd.DataFrame(client.open("ChurchApp").worksheet("Users").get_all_records())
@@ -40,7 +40,6 @@ def login():
     password = st.text_input("Password", type="password")
 
     if st.button("Login"):
-
         user = users[
             (users["email"].str.strip().str.lower() == email.strip().lower()) &
             (users["password"].astype(str).str.strip() == password.strip())
@@ -66,54 +65,28 @@ if not st.session_state["logged_in"]:
 members = pd.DataFrame(client.open("ChurchApp").worksheet("Members").get_all_records())
 attendance = pd.DataFrame(client.open("ChurchApp").worksheet("Attendance").get_all_records())
 
-# Clean columns
 members.columns = members.columns.str.strip()
 attendance.columns = attendance.columns.str.strip()
 
-# Rename
 members = members.rename(columns={
     "First Name?": "First Name",
     "Surname?": "Surname",
-    "Cellphone?": "Cellphone",
     "Employment Status?": "Employment Status"
 })
 
-# Convert dates
 members["Timestamp"] = pd.to_datetime(members["Timestamp"], errors="coerce")
 attendance["Date"] = pd.to_datetime(attendance["Date"], errors="coerce")
 
 # ----------------------------
-# SIDEBAR FILTERS
+# FILTERS
 # ----------------------------
 st.sidebar.header("🔍 Filters")
 
-gender = st.sidebar.multiselect(
-    "Gender",
-    members["Gender"].dropna().unique(),
-    default=members["Gender"].dropna().unique()
-)
+gender = st.sidebar.multiselect("Gender", members["Gender"].dropna().unique(), default=members["Gender"].dropna().unique())
+province = st.sidebar.multiselect("Province", members["Province"].dropna().unique(), default=members["Province"].dropna().unique())
+region = st.sidebar.multiselect("Region", members["Region"].dropna().unique(), default=members["Region"].dropna().unique())
+employment = st.sidebar.multiselect("Employment Status", members["Employment Status"].dropna().unique(), default=members["Employment Status"].dropna().unique())
 
-province = st.sidebar.multiselect(
-    "Province",
-    members["Province"].dropna().unique(),
-    default=members["Province"].dropna().unique()
-)
-
-region = st.sidebar.multiselect(
-    "Region",
-    members["Region"].dropna().unique(),
-    default=members["Region"].dropna().unique()
-)
-
-employment = st.sidebar.multiselect(
-    "Employment Status",
-    members["Employment Status"].dropna().unique(),
-    default=members["Employment Status"].dropna().unique()
-)
-
-# ----------------------------
-# FILTER DATA
-# ----------------------------
 members_f = members[
     (members["Gender"].isin(gender)) &
     (members["Province"].isin(province)) &
@@ -141,7 +114,7 @@ if "Employment Status" in attendance.columns:
 st.title("⛪ Church Analytics Dashboard")
 
 # ----------------------------
-# KPI (ONE ROW - FILTERED)
+# KPI
 # ----------------------------
 k1, k2, k3, k4, k5, k6 = st.columns(6)
 
@@ -155,75 +128,73 @@ k6.metric("⛪ Services", attendance_f["Service"].nunique() if "Service" in atte
 # ----------------------------
 # TABS
 # ----------------------------
-tab1, tab2, tab3, tab4 = st.tabs([
-    "📊 Dashboard",
-    "📈 Growth",
-    "👥 Members",
-    "📋 Attendance"
-])
+tab1, tab2, tab3, tab4 = st.tabs(["📊 Dashboard", "📈 Growth", "👥 Members", "📋 Attendance"])
 
 # ============================
 # DASHBOARD
 # ============================
 with tab1:
 
-    # Top row
     c1, c2 = st.columns(2)
 
+    # PIE CHART WITH %
     with c1:
-        st.plotly_chart(
-            px.pie(members_f, names="Gender", title="Gender Distribution"),
-            use_container_width=True
-        )
+        fig = px.pie(members_f, names="Gender", title="Gender Distribution")
+        fig.update_traces(textinfo="percent+label")
+        st.plotly_chart(fig, use_container_width=True)
 
+    # EMPLOYMENT WITH LABELS
     with c2:
         emp = members_f["Employment Status"].value_counts().reset_index()
         emp.columns = ["Employment Status", "Count"]
 
-        st.plotly_chart(
-            px.bar(emp, x="Employment Status", y="Count", title="Employment"),
-            use_container_width=True
-        )
+        fig = px.bar(emp, x="Employment Status", y="Count", text="Count")
+        fig.update_traces(textposition="outside")
 
-    # Second row (4 charts aligned)
+        st.plotly_chart(fig, use_container_width=True)
+
     c3, c4, c5, c6 = st.columns(4)
 
+    # PROVINCE
     with c3:
         prov = members_f["Province"].value_counts().reset_index()
         prov.columns = ["Province", "Count"]
 
-        st.plotly_chart(
-            px.bar(prov, x="Province", y="Count", title="Province"),
-            use_container_width=True
-        )
+        fig = px.bar(prov, x="Province", y="Count", text="Count")
+        fig.update_traces(textposition="outside")
 
+        st.plotly_chart(fig, use_container_width=True)
+
+    # SERVICE
     with c4:
         if "Service" in attendance_f.columns:
             serv = attendance_f["Service"].value_counts().reset_index()
             serv.columns = ["Service", "Count"]
 
-            st.plotly_chart(
-                px.bar(serv, x="Service", y="Count", title="Service Attendance"),
-                use_container_width=True
-            )
+            fig = px.bar(serv, x="Service", y="Count", text="Count")
+            fig.update_traces(textposition="outside")
 
+            st.plotly_chart(fig, use_container_width=True)
+
+    # REGION
     with c5:
         reg = members_f["Region"].value_counts().reset_index()
         reg.columns = ["Region", "Count"]
 
-        st.plotly_chart(
-            px.bar(reg, x="Region", y="Count", title="Region"),
-            use_container_width=True
-        )
+        fig = px.bar(reg, x="Region", y="Count", text="Count")
+        fig.update_traces(textposition="outside")
 
+        st.plotly_chart(fig, use_container_width=True)
+
+    # BRANCH
     with c6:
         br = members_f["Branch"].value_counts().reset_index()
         br.columns = ["Branch", "Count"]
 
-        st.plotly_chart(
-            px.bar(br, x="Branch", y="Count", title="Branch"),
-            use_container_width=True
-        )
+        fig = px.bar(br, x="Branch", y="Count", text="Count")
+        fig.update_traces(textposition="outside")
+
+        st.plotly_chart(fig, use_container_width=True)
 
 # ============================
 # GROWTH
@@ -238,47 +209,20 @@ with tab2:
 
     growth = pd.merge(mem_growth, att_growth, on="Date", how="outer").fillna(0)
 
-    st.plotly_chart(
-        px.line(growth, x="Date", y=["Members", "Attendance"], title="Growth Over Time"),
-        use_container_width=True
-    )
+    fig = px.line(growth, x="Date", y=["Members", "Attendance"], title="Growth Over Time", markers=True)
+    st.plotly_chart(fig, use_container_width=True)
 
 # ============================
-# MEMBERS TABLE
+# MEMBERS
 # ============================
 with tab3:
-
-    st.subheader("Members Table")
-
-    show_filtered = st.checkbox("Show filtered data only")
-
-    if show_filtered:
-        table = members_f
-    else:
-        table = members
-
-    st.dataframe(table, use_container_width=True)
-
-    st.download_button(
-        "⬇ Export Members",
-        table.to_csv(index=False),
-        "members.csv"
-    )
+    st.dataframe(members_f, use_container_width=True)
 
 # ============================
-# ATTENDANCE TABLE
+# ATTENDANCE
 # ============================
 with tab4:
-
-    st.subheader("Attendance Table")
-
     st.dataframe(attendance_f, use_container_width=True)
-
-    st.download_button(
-        "⬇ Export Attendance",
-        attendance_f.to_csv(index=False),
-        "attendance.csv"
-    )
 
 # ----------------------------
 # LOGOUT
