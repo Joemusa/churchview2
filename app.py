@@ -5,9 +5,9 @@ import plotly.express as px
 from google.oauth2.service_account import Credentials
 
 # ----------------------------
-# CONFIG
+# PAGE CONFIG
 # ----------------------------
-st.set_page_config(page_title="Church Dashboard", layout="wide")
+st.set_page_config(page_title="Church Executive Dashboard", layout="wide")
 
 # ----------------------------
 # CONNECT
@@ -52,14 +52,11 @@ province = st.sidebar.multiselect("Province", members["Province"].dropna().uniqu
 region = st.sidebar.multiselect("Region", members["Region"].dropna().unique(), default=members["Region"].dropna().unique())
 employment = st.sidebar.multiselect("Employment Status", members["Employment Status"].dropna().unique(), default=members["Employment Status"].dropna().unique())
 
-# ✅ DATE FILTER (NEW)
-date_range = st.sidebar.date_input(
-    "Select Date Range",
-    []
-)
+# ✅ DATE FILTER
+date_range = st.sidebar.date_input("Select Date Range", [])
 
 # ----------------------------
-# FILTER MEMBERS
+# FILTER DATA
 # ----------------------------
 members_f = members[
     (members["Gender"].isin(gender)) &
@@ -68,11 +65,9 @@ members_f = members[
     (members["Employment Status"].isin(employment))
 ]
 
-# ----------------------------
-# FILTER ATTENDANCE
-# ----------------------------
 attendance_f = attendance.copy()
 
+# Apply date filter ONLY to attendance charts
 if "Date" in attendance.columns and len(date_range) == 2:
     attendance_f = attendance_f[
         (attendance_f["Date"] >= pd.to_datetime(date_range[0])) &
@@ -97,7 +92,7 @@ if "Employment Status" in attendance.columns:
 st.title("⛪ Church Executive Dashboard")
 
 # ----------------------------
-# KPI
+# KPI (ONE ROW)
 # ----------------------------
 k1, k2, k3, k4, k5, k6 = st.columns(6)
 
@@ -109,20 +104,21 @@ k5.metric("Attendance", len(attendance_f))
 k6.metric("Services", attendance_f["Service"].nunique() if "Service" in attendance_f.columns else 0)
 
 # ----------------------------
-# CHART STYLE FUNCTION (🔥 CLEAN UI)
+# CLEAN CHART STYLE
 # ----------------------------
 def clean_chart(fig):
     fig.update_layout(
         yaxis=dict(visible=False, showgrid=False),
         xaxis=dict(showgrid=False),
-        plot_bgcolor="white"
+        plot_bgcolor="rgba(0,0,0,0)",
+        paper_bgcolor="rgba(0,0,0,0)"
     )
     return fig
 
 # ----------------------------
 # TABS
 # ----------------------------
-tab1, tab2 = st.tabs(["📊 Dashboard", "📈 Growth"])
+tab1, tab2, tab3, tab4 = st.tabs(["📊 Dashboard", "📈 Growth", "👥 Members", "📋 Attendance"])
 
 # ============================
 # DASHBOARD
@@ -135,6 +131,10 @@ with tab1:
     with c1:
         fig = px.pie(members_f, names="Gender")
         fig.update_traces(textinfo="percent+label")
+        fig.update_layout(
+            plot_bgcolor="rgba(0,0,0,0)",
+            paper_bgcolor="rgba(0,0,0,0)"
+        )
         st.plotly_chart(fig, use_container_width=True)
 
     # EMPLOYMENT
@@ -157,7 +157,7 @@ with tab1:
         fig.update_traces(textposition="outside")
         st.plotly_chart(clean_chart(fig), use_container_width=True)
 
-    # SERVICE (DATE FILTERED)
+    # SERVICE
     with c4:
         if "Service" in attendance_f.columns:
             serv = attendance_f["Service"].value_counts().reset_index()
@@ -202,7 +202,42 @@ with tab2:
 
     fig.update_layout(
         yaxis=dict(visible=False, showgrid=False),
-        xaxis=dict(showgrid=False)
+        xaxis=dict(showgrid=False),
+        plot_bgcolor="rgba(0,0,0,0)",
+        paper_bgcolor="rgba(0,0,0,0)"
     )
 
     st.plotly_chart(fig, use_container_width=True)
+
+# ============================
+# MEMBERS TABLE
+# ============================
+with tab3:
+
+    show_filtered = st.checkbox("Show filtered data only")
+
+    if show_filtered:
+        table = members_f
+    else:
+        table = members
+
+    st.dataframe(table, use_container_width=True)
+
+    st.download_button(
+        "⬇ Export Members",
+        table.to_csv(index=False),
+        "members.csv"
+    )
+
+# ============================
+# ATTENDANCE TABLE
+# ============================
+with tab4:
+
+    st.dataframe(attendance_f, use_container_width=True)
+
+    st.download_button(
+        "⬇ Export Attendance",
+        attendance_f.to_csv(index=False),
+        "attendance.csv"
+    )
