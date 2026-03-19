@@ -67,9 +67,20 @@ def login():
             st.rerun()
         else:
             st.error("Invalid credentials")
+
+# ----------------------------
+# SESSION CONTROL (CRITICAL FIX)
+# ----------------------------
+if "logged_in" not in st.session_state:
+    st.session_state["logged_in"] = False
+
+if not st.session_state.get("logged_in"):
+    login()
+    st.stop()   # 🔥 THIS STOPS DASHBOARD FROM LOADING
 # ----------------------------
 # MAIN DASHBOARD
 # ----------------------------
+
 st.title("⛪ Church Member Dashboard")
 
 # ----------------------------
@@ -103,8 +114,11 @@ df["Timestamp"] = pd.to_datetime(df["Timestamp"], errors="coerce")
 # FILTER BY LOGGED-IN CHURCH
 # ----------------------------
 user_church = st.session_state.get("church")
-#user_church = st.session_state["church"]
-df = df[df["Branch"] == user_church]
+
+if user_church:
+    df = df[df["Branch"] == user_church]
+else:
+    df = pd.DataFrame()  # empty safe fallback
 
 # ----------------------------
 # SIDEBAR FILTERS
