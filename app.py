@@ -121,22 +121,34 @@ if not attendance.empty:
 members = members.rename(columns={
     "First Name?": "First Name",
     "Surname?": "Surname",
-    "Employment Status?": "Employment Status"
+    "Employment Status?": "Employment Status",
+    "Cellphone?": "Cellphone"
 })
 
 # ----------------------------
 # ENSURE EXPECTED COLUMNS
 # ----------------------------
-for col in ["Gender", "Province", "Region", "Employment Status", "Branch", "Age", "MemberID"]:
+for col in ["Gender", "Province", "Region", "Employment Status", "Branch", "Age", "MemberID", "First Name", "Surname", "Cellphone"]:
     if col not in members.columns:
         members[col] = ""
 
-for col in ["Date", "Service", "MemberID"]:
+for col in ["Date", "Service", "MemberID", "Name", "Status", "Contact"]:
     if col not in attendance.columns:
         attendance[col] = ""
 
 if "Timestamp" not in members.columns:
     members["Timestamp"] = pd.NaT
+
+# ----------------------------
+# STANDARDIZE KEYS
+# ----------------------------
+members["MemberID"] = members["MemberID"].astype(str).str.strip()
+attendance["MemberID"] = attendance["MemberID"].astype(str).str.strip()
+
+members["Full Name"] = (
+    members["First Name"].astype(str).str.strip() + " " +
+    members["Surname"].astype(str).str.strip()
+).str.strip()
 
 # Convert dates
 members["Timestamp"] = pd.to_datetime(members["Timestamp"], errors="coerce")
@@ -176,16 +188,35 @@ if employment:
 attendance_f = attendance.copy()
 
 if "Date" in attendance_f.columns and len(date_range) == 2:
+    start_date = pd.to_datetime(date_range[0])
+    end_date = pd.to_datetime(date_range[1])
     attendance_f = attendance_f[
-        (attendance_f["Date"] >= pd.to_datetime(date_range[0])) &
-        (attendance_f["Date"] <= pd.to_datetime(date_range[1]))
+        (attendance_f["Date"] >= start_date) &
+        (attendance_f["Date"] <= end_date)
     ]
+
+# ----------------------------
+# DERIVED TABLES
+# ----------------------------
+new_visitors = attendance_f.copy()
+if not new_visitors.empty:
+    new_visitors["Status"] = new_visitors["Status"].astype(str).str.strip()
+    new_visitors = new_visitors[
+        new_visitors["Status"].isin(["First Visit", "Second Visit"])
+    ].copy()
+
+    new_visitors = new_visitors.sort_values("Date", ascending=False)
+
+attended_member_ids = set(attendance_f["MemberID"].dropna().astype(str).str.strip())
+members_not_attending = members_f[
+    ~members_f["MemberID"].isin(attended_member_ids)
+].copy()
 
 # ----------------------------
 # TITLE
 # ----------------------------
 st.markdown("<div class='main-title'>⛪ Church Executive Dashboard</div>", unsafe_allow_html=True)
-st.markdown("<div class='sub-title'>Leadership view of members, attendance and growth trends</div>", unsafe_allow_html=True)
+st.markdown("<div class='sub-title'>Leadership view of members, attendance, visitors and non-attendance trends</div>", unsafe_allow_html=True)
 
 # ----------------------------
 # HELPERS
@@ -226,22 +257,24 @@ with k3:
     show_kpi("Female", len(members_f[members_f["Gender"] == "Female"]))
 
 with k4:
-    show_kpi("Provinces", members_f["Province"].nunique())
-
-with k5:
     show_kpi("Attendance", len(attendance_f))
 
+with k5:
+    show_kpi("New Visitors", len(new_visitors))
+
 with k6:
-    show_kpi("Services", attendance_f["Service"].nunique() if "Service" in attendance_f.columns else 0)
+    show_kpi("Not Attending", len(members_not_attending))
 
 # ----------------------------
 # TABS
 # ----------------------------
-tab1, tab2, tab3, tab4 = st.tabs([
+tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
     "📊 Dashboard",
     "📈 Growth",
     "👥 Members",
-    "📋 Attendance"
+    "📋 Attendance",
+    "🆕 New Visitors",
+    "🚫 Not Attending"
 ])
 
 # ============================
@@ -343,11 +376,14 @@ with tab1:
 with tab2:
     st.markdown('<div class="chart-card">', unsafe_allow_html=True)
 
-    mem_growth = members.dropna(subset=["Timestamp"]).groupby(members["Timestamp"].dt.date).size().reset_index()
-    mem_growth.columns = ["Date", "Members"]
+    mem_base = members.dropna(subset=["Timestamp"]).copy()
+    att_base = attendance.dropna(subset=["Date"]).copy()
 
-    att_growth = attendance.dropna(subset=["Date"]).groupby(attendance["Date"].dt.date).size().reset_index()
-    att_growth.columns = ["Date", "Attendance"]
+    mem_growth = mem_base.groupby(mem_base["Timestamp"].dt.date).size().reset_index(name="Members")
+    mem_growth = mem_growth.rename(columns={"Timestamp": "Date"})
+
+    att_growth = att_base.groupby(att_base["Date"].dt.date).size().reset_index(name="Attendance")
+    att_growth = att_growth.rename(columns={"Date": "Date"})
 
     growth = pd.merge(mem_growth, att_growth, on="Date", how="outer").fillna(0)
 
@@ -364,11 +400,11 @@ with tab2:
 # ============================
 with tab3:
     st.subheader("Members Table")
-    st.dataframe(members, use_container_width=True)
+    st.dataframe(members_f, use_container_width=True)
 
     st.download_button(
         "⬇ Export Members",
-        members.to_csv(index=False),
+        members_f.to_csv(index=False),
         "members.csv"
     )
 
@@ -383,6 +419,32 @@ with tab4:
         "⬇ Export Attendance",
         attendance_f.to_csv(index=False),
         "attendance.csv"
+    )
+
+# ============================
+# NEW VISITORS TABLE
+# ============================
+with tab5:
+    st.subheader("New Visitors")
+    st.dataframe(new_visitors, use_container_width=True)
+
+    st.download_button(
+        "⬇ Export New Visitors",
+        new_visitors.to_csv(index=False),
+        "new_visitors.csv"
+    )
+
+# ============================
+# MEMBERS NOT ATTENDING
+# ============================
+with tab6:
+    st.subheader("Members Not Attending")
+    st.dataframe(members_not_attending, use_container_width=True)
+
+    st.download_button(
+        "⬇ Export Members Not Attending",
+        members_not_attending.to_csv(index=False),
+        "members_not_attending.csv"
     )
 
 # ----------------------------
