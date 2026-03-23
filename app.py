@@ -18,9 +18,10 @@ st.markdown("""
         font-size: 28px;
         font-weight: 700;
         margin-bottom: 0.25rem;
+        color: #111111;
     }
     .sub-title {
-        color: #666;
+        color: #666666;
         font-size: 14px;
         margin-bottom: 1.2rem;
     }
@@ -31,6 +32,17 @@ st.markdown("""
         background: white;
         box-shadow: 0 2px 8px rgba(0,0,0,0.05);
         text-align: center;
+        color: #1f1f1f;
+    }
+    .kpi-title {
+        font-size: 13px;
+        color: #555555;
+    }
+    .kpi-value {
+        font-size: 28px;
+        font-weight: 700;
+        margin-top: 6px;
+        color: #111111;
     }
     .chart-card {
         border: 1px solid #d9d9d9;
@@ -135,29 +147,15 @@ attendance["Date"] = pd.to_datetime(attendance["Date"], errors="coerce")
 # ----------------------------
 st.sidebar.header("🔍 Filters")
 
-gender = st.sidebar.multiselect(
-    "Gender",
-    sorted([x for x in members["Gender"].dropna().unique() if str(x).strip() != ""]),
-    default=sorted([x for x in members["Gender"].dropna().unique() if str(x).strip() != ""])
-)
+gender_options = sorted([x for x in members["Gender"].dropna().unique() if str(x).strip() != ""])
+province_options = sorted([x for x in members["Province"].dropna().unique() if str(x).strip() != ""])
+region_options = sorted([x for x in members["Region"].dropna().unique() if str(x).strip() != ""])
+employment_options = sorted([x for x in members["Employment Status"].dropna().unique() if str(x).strip() != ""])
 
-province = st.sidebar.multiselect(
-    "Province",
-    sorted([x for x in members["Province"].dropna().unique() if str(x).strip() != ""]),
-    default=sorted([x for x in members["Province"].dropna().unique() if str(x).strip() != ""])
-)
-
-region = st.sidebar.multiselect(
-    "Region",
-    sorted([x for x in members["Region"].dropna().unique() if str(x).strip() != ""]),
-    default=sorted([x for x in members["Region"].dropna().unique() if str(x).strip() != ""])
-)
-
-employment = st.sidebar.multiselect(
-    "Employment Status",
-    sorted([x for x in members["Employment Status"].dropna().unique() if str(x).strip() != ""]),
-    default=sorted([x for x in members["Employment Status"].dropna().unique() if str(x).strip() != ""])
-)
+gender = st.sidebar.multiselect("Gender", gender_options, default=gender_options)
+province = st.sidebar.multiselect("Province", province_options, default=province_options)
+region = st.sidebar.multiselect("Region", region_options, default=region_options)
+employment = st.sidebar.multiselect("Employment Status", employment_options, default=employment_options)
 
 date_range = st.sidebar.date_input("Select Date Range", [])
 
@@ -190,14 +188,14 @@ st.markdown("<div class='main-title'>⛪ Church Executive Dashboard</div>", unsa
 st.markdown("<div class='sub-title'>Leadership view of members, attendance and growth trends</div>", unsafe_allow_html=True)
 
 # ----------------------------
-# KPI HELPERS
+# HELPERS
 # ----------------------------
 def show_kpi(title, value):
     st.markdown(
         f"""
         <div class="kpi-card">
-            <div style="font-size:13px; color:#666;">{title}</div>
-            <div style="font-size:28px; font-weight:700; margin-top:6px;">{value}</div>
+            <div class="kpi-title">{title}</div>
+            <div class="kpi-value">{value}</div>
         </div>
         """,
         unsafe_allow_html=True
@@ -214,7 +212,7 @@ def clean_chart(fig):
     return fig
 
 # ----------------------------
-# KPI (ONE ROW)
+# KPI ROW
 # ----------------------------
 k1, k2, k3, k4, k5, k6 = st.columns(6)
 
@@ -254,8 +252,10 @@ with tab1:
 
     with c1:
         st.markdown('<div class="chart-card">', unsafe_allow_html=True)
-        if not members_f.empty:
-            fig = px.pie(members_f, names="Gender")
+        gender_data = members_f["Gender"].dropna()
+        gender_data = gender_data[gender_data.astype(str).str.strip() != ""]
+        if not gender_data.empty:
+            fig = px.pie(names=gender_data, values=[1] * len(gender_data))
             fig.update_traces(textinfo="percent+label")
             fig.update_layout(plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)")
             st.plotly_chart(fig, use_container_width=True)
@@ -303,15 +303,14 @@ with tab1:
 
     with c5:
         st.markdown('<div class="chart-card">', unsafe_allow_html=True)
-        if "Service" in attendance_f.columns:
-            serv = attendance_f["Service"].value_counts().reset_index()
-            serv.columns = ["Service", "Count"]
-            if not serv.empty:
-                fig = px.bar(serv, x="Service", y="Count", text="Count")
-                fig.update_traces(textposition="outside")
-                st.plotly_chart(clean_chart(fig), use_container_width=True)
-            else:
-                st.info("No data available")
+        serv = attendance_f["Service"].value_counts().reset_index()
+        serv.columns = ["Service", "Count"]
+        if not serv.empty:
+            fig = px.bar(serv, x="Service", y="Count", text="Count")
+            fig.update_traces(textposition="outside")
+            st.plotly_chart(clean_chart(fig), use_container_width=True)
+        else:
+            st.info("No data available")
         st.markdown('</div>', unsafe_allow_html=True)
 
     with c6:
@@ -344,10 +343,10 @@ with tab1:
 with tab2:
     st.markdown('<div class="chart-card">', unsafe_allow_html=True)
 
-    mem_growth = members.groupby(members["Timestamp"].dt.date).size().reset_index()
+    mem_growth = members.dropna(subset=["Timestamp"]).groupby(members["Timestamp"].dt.date).size().reset_index()
     mem_growth.columns = ["Date", "Members"]
 
-    att_growth = attendance.groupby(attendance["Date"].dt.date).size().reset_index()
+    att_growth = attendance.dropna(subset=["Date"]).groupby(attendance["Date"].dt.date).size().reset_index()
     att_growth.columns = ["Date", "Attendance"]
 
     growth = pd.merge(mem_growth, att_growth, on="Date", how="outer").fillna(0)
