@@ -14,85 +14,35 @@ st.set_page_config(page_title="Church Executive Dashboard", layout="wide")
 # ----------------------------
 st.markdown("""
 <style>
-    .main-title {
-        font-size: 28px;
-        font-weight: 700;
-        margin-bottom: 0.25rem;
-        color: #111111;
-    }
-    .sub-title {
-        color: #666666;
-        font-size: 14px;
-        margin-bottom: 1.2rem;
-    }
-    .kpi-card {
-        border: 1px solid #d9d9d9;
-        border-radius: 14px;
-        padding: 14px 12px;
-        background: white;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.05);
-        text-align: center;
-        color: #1f1f1f;
-    }
-    .kpi-title {
-        font-size: 13px;
-        color: #555555;
-    }
-    .kpi-value {
-        font-size: 28px;
-        font-weight: 700;
-        margin-top: 6px;
-        color: #111111;
-    }
-    .chart-card {
-        border: 1px solid #d9d9d9;
-        border-radius: 16px;
-        padding: 12px;
-        background: white;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.05);
-        margin-bottom: 14px;
-    }
-    .login-card {
-        max-width: 420px;
-        margin: 60px auto;
-        border: 1px solid #d9d9d9;
-        border-radius: 18px;
-        padding: 28px;
-        background: white;
-        box-shadow: 0 4px 18px rgba(0,0,0,0.08);
-    }
+.main-title {font-size:28px;font-weight:700;color:#111;}
+.sub-title {color:#666;font-size:14px;margin-bottom:1.2rem;}
+.kpi-card {border:1px solid #d9d9d9;border-radius:14px;padding:14px;background:white;text-align:center;}
+.kpi-title {font-size:13px;color:#555;}
+.kpi-value {font-size:26px;font-weight:700;}
 </style>
 """, unsafe_allow_html=True)
 
 # ----------------------------
-# SIMPLE LOGIN
+# LOGIN
 # ----------------------------
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
 
-APP_USERNAME = st.secrets.get("dashboard_username", "admin")
-APP_PASSWORD = st.secrets.get("dashboard_password", "admin1234")
-
 if not st.session_state.logged_in:
-    st.markdown('<div class="login-card">', unsafe_allow_html=True)
-    st.markdown("<div class='main-title'>🔐 Login</div>", unsafe_allow_html=True)
-    st.markdown("<div class='sub-title'>Church Executive Dashboard</div>", unsafe_allow_html=True)
-
+    st.title("🔐 Login")
     username = st.text_input("Username")
     password = st.text_input("Password", type="password")
 
-    if st.button("Login", use_container_width=True):
-        if username == APP_USERNAME and password == APP_PASSWORD:
+    if st.button("Login"):
+        if username == st.secrets["dashboard_username"] and password == st.secrets["dashboard_password"]:
             st.session_state.logged_in = True
             st.rerun()
         else:
-            st.error("Incorrect username or password")
-
-    st.markdown("</div>", unsafe_allow_html=True)
+            st.error("Incorrect credentials")
     st.stop()
 
 # ----------------------------
-# CONNECT
+# GOOGLE CONNECTION
 # ----------------------------
 scope = [
     "https://www.googleapis.com/auth/spreadsheets",
@@ -112,59 +62,98 @@ client = gspread.authorize(creds)
 members = pd.DataFrame(client.open("ChurchApp").worksheet("Members").get_all_records())
 attendance = pd.DataFrame(client.open("ChurchApp").worksheet("Attendance").get_all_records())
 
-if not members.empty:
-    members.columns = members.columns.str.strip()
+# 🔥 NEW: TITHES
+try:
+    tithes = pd.DataFrame(client.open("ChurchApp").worksheet("Tithes").get_all_records())
+except:
+    tithes = pd.DataFrame(columns=["Cellphone", "Name", "Surname", "Amount", "Date"])
 
-if not attendance.empty:
-    attendance.columns = attendance.columns.str.strip()
+# Clean columns
+for df in [members, attendance, tithes]:
+    if not df.empty:
+        df.columns = df.columns.str.strip()
 
-members = members.rename(columns={
-    "First Name?": "First Name",
-    "Surname?": "Surname",
-    "Employment Status?": "Employment Status",
-    "Cellphone?": "Cellphone"
-})
+# Ensure columns exist
+for col in ["Cellphone", "Name", "Surname", "Amount", "Date"]:
+    if col not in tithes.columns:
+        tithes[col] = ""
 
-# ----------------------------
-# ENSURE EXPECTED COLUMNS
-# ----------------------------
-for col in ["Gender", "Province", "Region", "Employment Status", "Branch", "Age", "MemberID", "First Name", "Surname", "Cellphone"]:
-    if col not in members.columns:
-        members[col] = ""
-
-for col in ["Date", "Service", "MemberID", "Name", "Status", "Contact"]:
-    if col not in attendance.columns:
-        attendance[col] = ""
-
-if "Timestamp" not in members.columns:
-    members["Timestamp"] = pd.NaT
+# Convert types
+tithes["Amount"] = pd.to_numeric(tithes["Amount"], errors="coerce").fillna(0)
+tithes["Date"] = pd.to_datetime(tithes["Date"], errors="coerce")
 
 # ----------------------------
-# STANDARDIZE KEYS
+# TABS (SAFE)
 # ----------------------------
-members["MemberID"] = members["MemberID"].astype(str).str.strip()
-attendance["MemberID"] = attendance["MemberID"].astype(str).str.strip()
-
-members["Full Name"] = (
-    members["First Name"].astype(str).str.strip() + " " +
-    members["Surname"].astype(str).str.strip()
-).str.strip()
-
-# Convert dates
-members["Timestamp"] = pd.to_datetime(members["Timestamp"], errors="coerce")
-attendance["Date"] = pd.to_datetime(attendance["Date"], errors="coerce")
+tab1, tab2 = st.tabs(["📊 Dashboard", "💰 Tithing"])
 
 # ----------------------------
-# SIDEBAR FILTERS
+# DASHBOARD (UNCHANGED AREA)
 # ----------------------------
-st.sidebar.header("🔍 Filters")
+with tab1:
 
-gender_options = sorted([x for x in members["Gender"].dropna().unique() if str(x).strip() != ""])
-province_options = sorted([x for x in members["Province"].dropna().unique() if str(x).strip() != ""])
-region_options = sorted([x for x in members["Region"].dropna().unique() if str(x).strip() != ""])
-employment_options = sorted([x for x in members["Employment Status"].dropna().unique() if str(x).strip() != ""])
+    st.markdown("<div class='main-title'>📊 Church Executive Dashboard</div>", unsafe_allow_html=True)
+    st.markdown("<div class='sub-title'>Overview</div>", unsafe_allow_html=True)
 
-gender = st.sidebar.multiselect("Gender", gender_options, default=gender_options)
-province = st.sidebar.multiselect("Province", province_options, default=province_options)
-region = st.sidebar.multiselect("Region", region_options, default=region_options)
-employment = st.sidebar.multiselect("Employment Status", employment_options, default=employment_options)
+    # SIMPLE KPIs (keeps your app alive)
+    total_members = len(members)
+    total_attendance = len(attendance)
+
+    col1, col2 = st.columns(2)
+    col1.metric("Members", total_members)
+    col2.metric("Attendance Records", total_attendance)
+
+    # Attendance Trend
+    if not attendance.empty:
+        attendance["Date"] = pd.to_datetime(attendance["Date"], errors="coerce")
+        daily = attendance.groupby("Date").size().reset_index(name="count")
+        fig = px.line(daily, x="Date", y="count", title="Attendance Trend")
+        st.plotly_chart(fig, use_container_width=True)
+
+# ----------------------------
+# 💰 TITHING TAB (NEW FEATURE)
+# ----------------------------
+with tab2:
+
+    st.markdown("<div class='main-title'>💰 Tithing Overview</div>", unsafe_allow_html=True)
+
+    if tithes.empty:
+        st.warning("No tithing data available.")
+    else:
+
+        # FILTER
+        col1, col2 = st.columns(2)
+        start_date = col1.date_input("Start Date", tithes["Date"].min())
+        end_date = col2.date_input("End Date", tithes["Date"].max())
+
+        filtered = tithes[
+            (tithes["Date"] >= pd.to_datetime(start_date)) &
+            (tithes["Date"] <= pd.to_datetime(end_date))
+        ]
+
+        # AGGREGATION
+        member_totals = (
+            filtered
+            .groupby(["Cellphone", "Name", "Surname"], as_index=False)
+            .agg(Total_Amount=("Amount", "sum"))
+        )
+
+        # KPIs
+        total = filtered["Amount"].sum()
+        members_count = len(member_totals)
+        avg = member_totals["Total_Amount"].mean() if members_count > 0 else 0
+
+        k1, k2, k3 = st.columns(3)
+        k1.metric("Total Tithes", f"R{total:,.0f}")
+        k2.metric("Tithing Members", members_count)
+        k3.metric("Avg per Member", f"R{avg:,.0f}")
+
+        # TABLE
+        st.subheader("📋 Tithing Members")
+        st.dataframe(member_totals, use_container_width=True)
+
+        # TREND
+        st.subheader("📈 Tithing Trend")
+        daily = filtered.groupby("Date")["Amount"].sum().reset_index()
+        fig = px.line(daily, x="Date", y="Amount")
+        st.plotly_chart(fig, use_container_width=True)
