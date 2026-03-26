@@ -126,6 +126,26 @@ members = members.rename(columns={
 })
 
 # ----------------------------
+# LOAD TITHES DATA (NEW)
+# ----------------------------
+try:
+    tithes = pd.DataFrame(client.open("ChurchApp").worksheet("Tithes").get_all_records())
+    
+    if not tithes.empty:
+        tithes.columns = tithes.columns.str.strip()
+    
+    # Ensure required columns exist
+    for col in ["Cellphone", "Name", "Surname", "Amount", "Date"]:
+        if col not in tithes.columns:
+            tithes[col] = ""
+
+    # Convert types
+    tithes["Amount"] = pd.to_numeric(tithes["Amount"], errors="coerce").fillna(0)
+    tithes["Date"] = pd.to_datetime(tithes["Date"], errors="coerce")
+
+except:
+    tithes = pd.DataFrame(columns=["Cellphone", "Name", "Surname", "Amount", "Date"])
+# ----------------------------
 # ENSURE EXPECTED COLUMNS
 # ----------------------------
 for col in ["Gender", "Province", "Region", "Employment Status", "Branch", "Age", "MemberID", "First Name", "Surname", "Cellphone"]:
