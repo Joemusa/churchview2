@@ -71,7 +71,7 @@ if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
 
 APP_USERNAME = st.secrets.get("dashboard_username", "admin")
-APP_PASSWORD = st.secrets.get("dashboard_password", "admin123")
+APP_PASSWORD = st.secrets.get("dashboard_password", "admin1234")
 
 if not st.session_state.logged_in:
     st.markdown('<div class="login-card">', unsafe_allow_html=True)
