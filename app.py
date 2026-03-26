@@ -124,10 +124,7 @@ members = members.rename(columns={
     "Employment Status?": "Employment Status",
     "Cellphone?": "Cellphone"
 })
-st.write("Members shape:", members.shape)
-st.write("Attendance shape:", attendance.shape)
-st.dataframe(members.head())
-st.dataframe(attendance.head())
+
 # ----------------------------
 # ENSURE EXPECTED COLUMNS
 # ----------------------------
