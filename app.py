@@ -171,3 +171,64 @@ gender = st.sidebar.multiselect("Gender", gender_options, default=gender_options
 province = st.sidebar.multiselect("Province", province_options, default=province_options)
 region = st.sidebar.multiselect("Region", region_options, default=region_options)
 employment = st.sidebar.multiselect("Employment Status", employment_options, default=employment_options)
+
+# ----------------------------
+# APPLY FILTERS
+# ----------------------------
+filtered_members = members[
+    (members["Gender"].isin(gender)) &
+    (members["Province"].isin(province)) &
+    (members["Region"].isin(region)) &
+    (members["Employment Status"].isin(employment))
+]
+
+# ----------------------------
+# DASHBOARD TITLE
+# ----------------------------
+st.markdown("<div class='main-title'>📊 Church Executive Dashboard</div>", unsafe_allow_html=True)
+st.markdown("<div class='sub-title'>Live overview of members and attendance</div>", unsafe_allow_html=True)
+
+# ----------------------------
+# KPIs
+# ----------------------------
+total_members = len(filtered_members)
+total_attendance = len(attendance)
+
+col1, col2 = st.columns(2)
+
+col1.markdown(f"""
+<div class="kpi-card">
+    <div class="kpi-title">Total Members</div>
+    <div class="kpi-value">{total_members}</div>
+</div>
+""", unsafe_allow_html=True)
+
+col2.markdown(f"""
+<div class="kpi-card">
+    <div class="kpi-title">Total Attendance Records</div>
+    <div class="kpi-value">{total_attendance}</div>
+</div>
+""", unsafe_allow_html=True)
+
+# ----------------------------
+# ATTENDANCE TREND
+# ----------------------------
+if not attendance.empty:
+    attendance["Date"] = pd.to_datetime(attendance["Date"], errors="coerce")
+
+    daily_attendance = attendance.groupby("Date").size().reset_index(name="Attendance")
+
+    fig = px.line(
+        daily_attendance,
+        x="Date",
+        y="Attendance",
+        title="Attendance Trend Over Time"
+    )
+
+    st.plotly_chart(fig, use_container_width=True)
+
+# ----------------------------
+# MEMBERS TABLE
+# ----------------------------
+st.markdown("### 👥 Members Overview")
+st.dataframe(filtered_members, use_container_width=True)
