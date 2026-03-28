@@ -277,7 +277,7 @@ with k6:
 # ----------------------------
 # TABS
 # ----------------------------
-tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
+tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
     "📊 Dashboard",
     "📈 Growth",
     "👥 Members",
@@ -457,6 +457,18 @@ with tab6:
         "members_not_attending.csv"
     )
 
+# ============================
+TITHING MEMEBERS
+# ============================
+with tab7:
+    st.subheader("Tithing Members")
+    st.dataFrame(tithing_members, use_container_width=True)
+
+    st.download_button(
+        "⬇ Export Tithing Members",
+        tithing_members.to_csv(index=False),
+        "tithing_members.csv"
+        
 # ----------------------------
 # LOGOUT
 # ----------------------------
