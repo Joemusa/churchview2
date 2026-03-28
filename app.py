@@ -111,12 +111,16 @@ client = gspread.authorize(creds)
 # ----------------------------
 members = pd.DataFrame(client.open("ChurchApp").worksheet("Members").get_all_records())
 attendance = pd.DataFrame(client.open("ChurchApp").worksheet("Attendance").get_all_records())
+tithing = pd.DataFrame(client.open("ChurchApp").worksheet("Tithing").get_all_records())
 
 if not members.empty:
     members.columns = members.columns.str.strip()
 
 if not attendance.empty:
     attendance.columns = attendance.columns.str.strip()
+
+if not tithing.empty:
+    tithing.columns = tithing.columns.str.strip()
 
 members = members.rename(columns={
     "First Name?": "First Name",
@@ -135,6 +139,11 @@ for col in ["Gender", "Province", "Region", "Employment Status", "Branch", "Age"
 for col in ["Date", "Service", "MemberID", "Name", "Status", "Contact"]:
     if col not in attendance.columns:
         attendance[col] = ""
+        
+for col in ["Date","Name", "Surname", "Amount"]:
+    if col not in attendance.columns:
+        tithing[col] = ""
+
 
 if "Timestamp" not in members.columns:
     members["Timestamp"] = pd.NaT
