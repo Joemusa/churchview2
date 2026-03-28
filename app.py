@@ -254,7 +254,7 @@ def clean_chart(fig):
 # ----------------------------
 # KPI ROW
 # ----------------------------
-k1, k2, k3, k4, k5, k6 = st.columns(6)
+k1, k2, k3, k4, k5, k6, k7 = st.columns(6)
 
 with k1:
     show_kpi("Members", members_f["MemberID"].nunique())
@@ -273,6 +273,9 @@ with k5:
 
 with k6:
     show_kpi("Not Attending", len(members_not_attending))
+
+with k7:
+    show_kpi("Tithing Members", len(tithing_members))
 
 # ----------------------------
 # TABS
