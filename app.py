@@ -22,7 +22,7 @@ st.markdown("""
     }
     .sub-title {
         color: #666666;
-        font-size: 14px;
+        font-size: 16px;
         margin-bottom: 1.2rem;
     }
     .kpi-card {
