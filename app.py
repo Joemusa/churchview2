@@ -275,7 +275,7 @@ with k6:
     show_kpi("Not Attending", len(members_not_attending))
 
 with k7:
-    show_kpi("Tithing Members", len(tithing_members))
+    show_kpi("Tithing Members", len(tithing))
 
 # ----------------------------
 # TABS
@@ -465,7 +465,7 @@ with tab6:
 # ============================
 with tab7:
     st.subheader("Tithing Members")
-    st.dataframe(tithing_members, use_container_width=True)
+    st.dataframe(tithing, use_container_width=True)
 
     st.download_button(
         "⬇ Export Tithing Members",
