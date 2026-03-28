@@ -141,7 +141,7 @@ for col in ["Date", "Service", "MemberID", "Name", "Status", "Contact"]:
         attendance[col] = ""
         
 for col in ["Date","Name", "Surname", "Amount"]:
-    if col not in attendance.columns:
+    if col not in tithing.columns:
         tithing[col] = ""
 
 
@@ -254,7 +254,7 @@ def clean_chart(fig):
 # ----------------------------
 # KPI ROW
 # ----------------------------
-k1, k2, k3, k4, k5, k6, k7 = st.columns(7)
+k1, k2, k3, k4, k5, k6, k7, k8 = st.columns(8)
 
 with k1:
     show_kpi("Members", members_f["MemberID"].nunique())
@@ -276,6 +276,9 @@ with k6:
 
 with k7:
     show_kpi("Tithing Members", len(tithing))
+
+with k8:
+    show_kpi("Tithed Amount", len(tithed_amount))
 
 # ----------------------------
 # TABS
