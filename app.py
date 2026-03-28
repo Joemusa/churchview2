@@ -462,7 +462,7 @@ with tab6:
 # ============================
 with tab7:
     st.subheader("Tithing Members")
-    st.dataFrame(tithing_members, use_container_width=True)
+    st.dataframe(tithing_members, use_container_width=True)
 
     st.download_button(
         "⬇ Export Tithing Members",
