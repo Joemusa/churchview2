@@ -468,6 +468,7 @@ with tab7:
         "⬇ Export Tithing Members",
         tithing_members.to_csv(index=False),
         "tithing_members.csv"
+    )
         
 # ----------------------------
 # LOGOUT
