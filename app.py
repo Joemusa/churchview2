@@ -469,7 +469,7 @@ with tab7:
 
     st.download_button(
         "⬇ Export Tithing Members",
-        tithing_members.to_csv(index=False),
+        tithing.to_csv(index=False),
         "tithing_members.csv"
     )
         
