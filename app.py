@@ -458,7 +458,7 @@ with tab6:
     )
 
 # ============================
-TITHING MEMEBERS
+# TITHING MEMEBERS
 # ============================
 with tab7:
     st.subheader("Tithing Members")
