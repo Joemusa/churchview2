@@ -140,7 +140,7 @@ for col in ["Date", "Service", "MemberID", "Name", "Status", "Contact"]:
     if col not in attendance.columns:
         attendance[col] = ""
         
-for col in ["Date","Name", "Surname", "Amount"]:
+for col in ["Date","Name", "Surname", "Amount", "MemberID"]:
     if col not in tithing.columns:
         tithing[col] = ""
 
@@ -278,7 +278,7 @@ with k7:
     show_kpi("Tithing Members", len(tithing))
 
 with k8:
-    show_kpi("Tithed Amount", len(tithed_amount))
+    show_kpi("Tithed Amount", len(titheing))
 
 # ----------------------------
 # TABS
