@@ -278,7 +278,7 @@ with k7:
     show_kpi("Tithing Members", len(tithing))
 
 with k8:
-    show_kpi("Tithed Amount", len(titheing))
+    show_kpi("Tithed Amount", len(tithing))
 
 # ----------------------------
 # TABS
