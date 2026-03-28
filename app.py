@@ -281,18 +281,18 @@ with k7:
 
 with k8:
     total_tithing = tithing["Amount"].sum()
-    show_kpi("Tithing", f"R {total_tithing:,.0f}")
+    show_kpi("Tithes", f"R {total_tithing:,.0f}")
 # ----------------------------
 # TABS
 # ----------------------------
 tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
     "📊 Dashboard",
     "📈 Growth",
-    "👥 Members",
+    "👥 Total Members",
     "📋 Attendance",
     "🆕 New Visitors",
     "🚫 Not Attending",
-    "💰 Tithing"
+    "💰 Tithing Members"
 ])
 
 # ============================
