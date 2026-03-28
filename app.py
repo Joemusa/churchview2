@@ -35,7 +35,7 @@ st.markdown("""
         color: #1f1f1f;
     }
     .kpi-title {
-        font-size: 13px;
+        font-size: 14px;
         color: #555555;
     }
     .kpi-value {
