@@ -138,7 +138,7 @@ for col in ["Gender", "Province", "Region", "Employment Status", "Branch", "Age"
     if col not in members.columns:
         members[col] = ""
 
-for col in ["Date", "Service", "MemberID", "Name", "Status", "Contact"]:
+for col in ["Date", "Service", "MemberID", "Name", "Status"]:
     if col not in attendance.columns:
         attendance[col] = ""
         
