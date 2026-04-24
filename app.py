@@ -192,7 +192,7 @@ members_f = members.copy()
 if gender:
     members_f = members_f[members_f["Gender"].isin(gender)]
 if leader:
-    members_f = members_f[members_f["Leader"].isin(Leader)]
+    members_f = members_f[members_f["Leader"].isin(leader)]
 if province:
     members_f = members_f[members_f["Province"].isin(province)]
 if region:
