@@ -134,7 +134,7 @@ members = members.rename(columns={
 # ----------------------------
 # ENSURE EXPECTED COLUMNS
 # ----------------------------
-for col in ["Gender", "Province", "Region", "Employment Status", "Branch", "Age", "MemberID", "First Name", "Surname", "Cellphone", "Birth Month", "Birth Day"]:
+for col in ["Gender", "Province", "Region", "Employment Status", "Branch", "Age", "MemberID", "Leader", "First Name", "Surname", "Cellphone", "Birth Month", "Birth Day"]:
     if col not in members.columns:
         members[col] = ""
 
