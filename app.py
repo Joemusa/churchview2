@@ -177,7 +177,7 @@ region_options = sorted([x for x in members["Region"].dropna().unique() if str(x
 employment_options = sorted([x for x in members["Employment Status"].dropna().unique() if str(x).strip() != ""])
 
 gender = st.sidebar.multiselect("Gender", gender_options, default=gender_options)
-leader = st.sidebar.multiselect("Leader", leader_options, default=gender_options)
+leader = st.sidebar.multiselect("Leader", leader_options, default=leader_options)
 province = st.sidebar.multiselect("Province", province_options, default=province_options)
 region = st.sidebar.multiselect("Region", region_options, default=region_options)
 employment = st.sidebar.multiselect("Employment Status", employment_options, default=employment_options)
