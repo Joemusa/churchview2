@@ -171,6 +171,7 @@ attendance["Date"] = pd.to_datetime(attendance["Date"], errors="coerce")
 st.sidebar.header("🔍 Filters")
 
 gender_options = sorted([x for x in members["Gender"].dropna().unique() if str(x).strip() != ""])
+Leader_options = sorted([x for x in members["Leader"].dropna().unique() if str(x).strip() != ""])
 province_options = sorted([x for x in members["Province"].dropna().unique() if str(x).strip() != ""])
 region_options = sorted([x for x in members["Region"].dropna().unique() if str(x).strip() != ""])
 employment_options = sorted([x for x in members["Employment Status"].dropna().unique() if str(x).strip() != ""])
