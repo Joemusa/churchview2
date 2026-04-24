@@ -193,6 +193,9 @@ if gender:
     members_f = members_f[members_f["Gender"].isin(gender)]
 if leader:
     members_f = members_f[members_f["Leader"].isin(leader)]
+    filtered_member_ids = set(
+        members_f["MembersID"].dropna().astype(str).str.strip()
+    )
 if province:
     members_f = members_f[members_f["Province"].isin(province)]
 if region:
