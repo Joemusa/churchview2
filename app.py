@@ -169,6 +169,7 @@ attendance["Date"] = pd.to_datetime(attendance["Date"], errors="coerce")
 # SIDEBAR FILTERS
 # ----------------------------
 st.sidebar.header("🔍 Filters")
+st.sidebar.write("DEBUG Leader:", leader_options)
 
 gender_options = sorted([x for x in members["Gender"].dropna().unique() if str(x).strip() != ""])
 leader_options = sorted([x for x in members["Leader"].dropna().unique() if str(x).strip() != ""])
